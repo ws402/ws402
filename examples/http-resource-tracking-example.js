@@ -155,7 +155,7 @@ app.get('/api/resource/:resourceId/schema', (req, res) => {
   const schema = ws402.generateSchema(resourceId, resource.estimatedReadTime);
   schema.pricing.pricePerSecond = resource.pricePerSecond;
   schema.pricing.totalPrice = resource.pricePerSecond * resource.estimatedReadTime;
-  schema.websocketEndpoint = `ws://${req.headers.host}/ws402?resourceId=${resourceId}`;
+  schema.websocketEndpoint = `wss://${req.headers.host}/ws402?resourceId=${resourceId}`;
   
   res.json({
     resource: {

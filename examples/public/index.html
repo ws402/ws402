@@ -196,7 +196,7 @@
         console.log('WS402 Schema:', schema);
 
         // Step 2: Connect to WebSocket
-        ws = new WebSocket(`ws://${window.location.host}?userId=${encodeURIComponent(userId)}`);
+        ws = new WebSocket(`wss://${window.location.host}?userId=${encodeURIComponent(userId)}`);
 
         ws.onopen = () => {
           $('status').textContent = 'Connected - Awaiting Payment';
