@@ -3,7 +3,7 @@ const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
 const path = require('path');
-const { WS402, MockPaymentProvider } = require('../dist/index');
+const { WS402, MockPaymentProvider } = require('ws402');
 
 const app = express();
 const server = http.createServer(app);
