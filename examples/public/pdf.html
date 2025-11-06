@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WS402 - HTTP Resource Demo</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #0a1628 0%, #152238 100%);
+      color: #e0f2fe;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      color: #00d4ff;
+      margin-bottom: 10px;
+      font-size: 2.5rem;
+      text-align: center;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #94a3b8;
+      margin-bottom: 30px;
+      font-size: 1.1rem;
+    }
+
+    .status-box {
+      background: #152238;
+      border: 1px solid #1e3a5f;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid #1e3a5f;
+    }
+
+    .status-row:last-child {
+      border-bottom: none;
+    }
+
+    .label {
+      color: #00d4ff;
+      font-weight: 600;
+    }
+
+    .value {
+      color: #e0f2fe;
+      font-weight: 500;
+    }
+
+    .state {
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    .state.connecting {
+      background: #f59e0b;
+      color: #0a1628;
+    }
+
+    .state.connected {
+      background: #10b981;
+      color: #0a1628;
+    }
+
+    .state.disconnected {
+      background: #ef4444;
+      color: white;
+    }
+
+    .resources {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .resource-card {
+      background: #152238;
+      border: 1px solid #1e3a5f;
+      border-radius: 12px;
+      padding: 20px;
+      transition: all 0.3s ease;
+    }
+
+    .resource-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 8px 20px rgba(0, 212, 255, 0.2);
+      border-color: #00d4ff;
+    }
+
+    .resource-card h3 {
+      color: #00d4ff;
+      margin-bottom: 10px;
+      font-size: 1.3rem;
+    }
+
+    .resource-info {
+      color: #94a3b8;
+      font-size: 0.9rem;
+      margin-bottom: 15px;
+      line-height: 1.6;
+    }
+
+    button {
+      background: linear-gradient(135deg, #00d4ff, #00ffcc);
+      color: #0a1628;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      font-size: 1rem;
+      transition: all 0.3s ease;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 212, 255, 0.4);
+    }
+
+    button:disabled {
+      background: #1e3a5f;
+      color: #64748b;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: #1e3a5f;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #00d4ff, #00ffcc);
+      transition: width 0.3s ease;
+    }
+
+    #pdfViewer {
+      width: 100%;
+      height: 700px;
+      border: 2px solid #1e3a5f;
+      border-radius: 12px;
+      background: white;
+      display: none;
+      margin-top: 20px;
+    }
+
+    #pdfViewer.active {
+      display: block;
+    }
+
+    .info-box {
+      background: #1e3a5f;
+      padding: 15px;
+      border-radius: 8px;
+      margin-top: 20px;
+      font-size: 0.9rem;
+      color: #94a3b8;
+      line-height: 1.6;
+    }
+
+    .info-box strong {
+      color: #00d4ff;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.5;
+      }
+    }
+
+    .pulse {
+      animation: pulse 2s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📄 WS402 HTTP Resource Demo</h1>
+    <p class="subtitle">Resources served via HTTP • Time tracking via WebSocket</p>
+
+    <div class="status-box">
+      <div class="status-row">
+        <span class="label">Connection:</span>
+        <span id="status" class="state disconnected">Disconnected</span>
+      </div>
+      <div class="status-row">
+        <span class="label">Session ID:</span>
+        <span id="sessionId" class="value">—</span>
+      </div>
+      <div class="status-row">
+        <span class="label">User ID:</span>
+        <span id="userId" class="value">alice</span>
+      </div>
+    </div>
+
+    <div class="status-box">
+      <div class="status-row">
+        <span class="label">Time Elapsed:</span>
+        <span id="elapsed" class="value">0s</span>
+      </div>
+      <div class="status-row">
+        <span class="label">Amount Consumed:</span>
+        <span id="consumed" class="value">0 wei</span>
+      </div>
+      <div class="status-row">
+        <span class="label">Remaining Balance:</span>
+        <span id="remaining" class="value">0 wei</span>
+      </div>
+      <div class="progress-bar">
+        <div id="progressBar" class="progress-fill" style="width: 0%"></div>
+      </div>
+    </div>
+
+    <div class="resources">
+      <div class="resource-card">
+        <h3>📋 Annual Report 2024</h3>
+        <div class="resource-info">
+          <strong>Type:</strong> PDF<br>
+          <strong>Price:</strong> 5 wei/second<br>
+          <strong>Estimated:</strong> 10 minutes<br>
+          <strong>Total:</strong> 3000 wei
+        </div>
+        <button onclick="accessResource('pdf-report-2024')">Access PDF</button>
+      </div>
+
+      <div class="resource-card">
+        <h3>📖 Complete Guide</h3>
+        <div class="resource-info">
+          <strong>Type:</strong> PDF<br>
+          <strong>Price:</strong> 3 wei/second<br>
+          <strong>Estimated:</strong> 30 minutes<br>
+          <strong>Total:</strong> 5400 wei
+        </div>
+        <button onclick="accessResource('ebook-guide')">Access eBook</button>
+      </div>
+
+      <div class="resource-card">
+        <h3>🖼️ Premium Image</h3>
+        <div class="resource-info">
+          <strong>Type:</strong> Image<br>
+          <strong>Price:</strong> 2 wei/second<br>
+          <strong>Estimated:</strong> 5 minutes<br>
+          <strong>Total:</strong> 600 wei
+        </div>
+        <button onclick="accessResource('image-premium')">Access Image</button>
+      </div>
+    </div>
+
+    <iframe id="pdfViewer"></iframe>
+
+    <div class="info-box">
+      <strong>💡 How it works:</strong><br>
+      1. You pay upfront for the estimated time<br>
+      2. The resource downloads via HTTP (complete PDF/image)<br>
+      3. WebSocket tracks time in the background<br>
+      4. When you close, automatic refund for unused time<br>
+      <br>
+      <strong>You only pay for the time you actually use!</strong> ✅
+    </div>
+  </div>
+
+  <script>
+    let ws = null;
+    let currentSession = null;
+
+    const $ = (id) => document.getElementById(id);
+
+    function setStatus(text, cssClass = 'disconnected') {
+      $('status').textContent = text;
+      $('status').className = `state ${cssClass}`;
+    }
+
+    async function accessResource(resourceId) {
+      try {
+        setStatus('Loading...', 'connecting');
+        console.log('Requesting schema for:', resourceId);
+
+        // Step 1: Get WS402 schema
+        const schemaRes = await fetch(`/api/resource/${resourceId}/schema`);
+        const { resource, ws402Schema } = await schemaRes.json();
+
+        console.log('Resource:', resource);
+        console.log('Schema:', ws402Schema);
+
+        setStatus('Connecting...', 'connecting');
+
+        // Step 2: Connect WebSocket
+        ws = new WebSocket(ws402Schema.websocketEndpoint + '&userId=alice');
+
+        ws.onopen = () => {
+          setStatus('Sending Payment...', 'connecting');
+          console.log('WebSocket connected');
+
+          // Step 3: Send payment proof
+          ws.send(JSON.stringify({
+            type: 'payment_proof',
+            proof: {
+              amount: ws402Schema.pricing.totalPrice,
+              userId: 'alice',
+              txId: 'mock_tx_' + Date.now(),
+            }
+          }));
+        };
+
+        ws.onmessage = (event) => {
+          const msg = JSON.parse(event.data);
+          console.log('Message:', msg);
+
+          if (msg.type === 'session_started') {
+            setStatus('Session Active', 'connected');
+            currentSession = msg.sessionId;
+            $('sessionId').textContent = msg.sessionId.substring(0, 20) + '...';
+            $('remaining').textContent = msg.balance + ' wei';
+          }
+
+          if (msg.type === 'http_access_granted') {
+            console.log('HTTP access granted!');
+            setStatus('✅ Loading Resource...', 'connected');
+
+            // Step 4: Load resource via HTTP
+            const viewer = $('pdfViewer');
+            viewer.src = msg.resourceUrl;
+            viewer.classList.add('active');
+
+            setTimeout(() => {
+              setStatus('✅ Active - Tracking Time', 'connected');
+            }, 1000);
+          }
+
+          if (msg.type === 'usage_update') {
+            $('elapsed').textContent = msg.elapsedSeconds + 's';
+            $('consumed').textContent = msg.consumedAmount + ' wei';
+            $('remaining').textContent = msg.remainingBalance + ' wei';
+
+            const paidAmount = msg.consumedAmount + msg.remainingBalance;
+            const percentage = (msg.consumedAmount / paidAmount) * 100;
+            $('progressBar').style.width = percentage + '%';
+          }
+
+          if (msg.type === 'balance_exhausted') {
+            setStatus('Balance Exhausted', 'disconnected');
+            alert('Your balance has been exhausted. Closing session...');
+            setTimeout(() => ws.close(), 2000);
+          }
+
+          if (msg.type === 'payment_rejected') {
+            setStatus('Payment Rejected', 'disconnected');
+            alert('Payment was rejected: ' + msg.reason);
+          }
+        };
+
+        ws.onclose = () => {
+          setStatus('Disconnected - Refund Processed', 'disconnected');
+          $('pdfViewer').classList.remove('active');
+          console.log('WebSocket closed, refund processed automatically');
+        };
+
+        ws.onerror = (error) => {
+          setStatus('Error', 'disconnected');
+          console.error('WebSocket error:', error);
+        };
+
+      } catch (error) {
+        setStatus('Error', 'disconnected');
+        console.error('Error:', error);
+        alert('Error: ' + error.message);
+      }
+    }
+
+    // Close WebSocket when leaving page
+    window.addEventListener('beforeunload', () => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
+    });
+  </script>
+</body>
+</html>
