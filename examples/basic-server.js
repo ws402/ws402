@@ -68,7 +68,7 @@ app.get('/status', (req, res) => {
   });
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4028;
 server.listen(PORT, () => {
   console.log(`🚀 WS402 Server running on http://localhost:${PORT}`);
   console.log(`📊 Status: http://localhost:${PORT}/status`);
