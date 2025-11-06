@@ -115,7 +115,7 @@ wss.on('connection', (ws, req) => {
               type: 'http_access_granted',
               sessionId: userSession.sessionId,
               httpToken: httpToken,
-              resourceUrl: `http://${req.headers.host}/api/resource/${resourceId}?token=${httpToken}`,
+              resourceUrl: `https://demo-http.ws402.org/api/resource/${resourceId}?token=${httpToken}`,
               message: 'You can now access the resource via HTTP',
             }));
             
