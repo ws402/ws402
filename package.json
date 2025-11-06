@@ -1,15 +1,48 @@
 {
-  "name": "ws-resource-tracker",
-  "version": "1.0.0",
-  "description": "Track WebSocket session time and bytes received",
-  "main": "server.js",
+  "name": "ws402",
+  "version": "0.1.0",
+  "description": "WebSocket implementation of X402 protocol for pay-as-you-go digital resources with automatic refunds",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
-    "start": "node server.js"
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "jest",
+    "prepublishOnly": "npm run build",
+    "example": "node examples/basic-server.js"
   },
-  "author": "",
+  "keywords": [
+    "ws402",
+    "x402",
+    "websocket",
+    "payment",
+    "pay-as-you-go",
+    "metering",
+    "blockchain",
+    "base",
+    "protocol"
+  ],
+  "author": "WS402 Contributors",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ws402/ws402.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ws402/ws402/issues"
+  },
+  "homepage": "https://ws402.org",
   "dependencies": {
-    "express": "^4.19.2",
-    "ws": "^8.17.1"
+    "ws": "^8.14.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/ws": "^8.5.8",
+    "typescript": "^5.2.2",
+    "jest": "^29.7.0",
+    "@types/jest": "^29.5.5"
+  },
+  "engines": {
+    "node": ">=16.0.0"
   }
 }
