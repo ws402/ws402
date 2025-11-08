@@ -1,6 +1,6 @@
 {
   "name": "ws402",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "WebSocket implementation of X402 protocol for pay-as-you-go digital resources with automatic refunds",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

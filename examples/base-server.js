@@ -2,12 +2,16 @@
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
-const { WS402 } = require('ws402');
-const { BasePaymentProvider } = require('ws402/providers/BasePaymentProvider');
+const path = require('path');
+const { WS402, BasePaymentProvider } = require('../dist/index');
 
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
+
+// Serve static files (HTML client)
+app.use(express.static(path.join(__dirname)));
+app.use(express.json());
 
 // Initialize Base Payment Provider
 const baseProvider = new BasePaymentProvider({
@@ -15,7 +19,7 @@ const baseProvider = new BasePaymentProvider({
   rpcEndpoint: process.env.BASE_RPC || 'https://mainnet.base.org',
   
   // Your merchant wallet to receive payments
-  merchantWallet: process.env.MERCHANT_WALLET || '0xYOUR_WALLET_ADDRESS_HERE',
+  merchantWallet: process.env.MERCHANT_WALLET || '0x1d2c14dde6f06325ca1f4e6dd376f29a614ab5f6',
   
   // Network configuration
   network: 'base', // 'base' | 'base-goerli' | 'base-sepolia'
@@ -63,6 +67,11 @@ const ws402 = new WS402(
 
 // Attach WS402 to WebSocket server
 ws402.attach(wss);
+
+// Serve HTML client
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, '/public/base-client.html'));
+});
 
 // HTTP endpoint to get WS402 schema with Base payment details
 app.get('/ws402/schema/:resourceId', (req, res) => {
@@ -122,11 +131,13 @@ server.listen(PORT, () => {
   console.log('===========================================');
   console.log('🚀 WS402 Server with Base Payments');
   console.log('===========================================');
-  console.log(`\n📡 Server: http://localhost:${PORT}`);
+  console.log(`\n🌐 Frontend: http://localhost:${PORT}`);
+  console.log(`📡 Server: http://localhost:${PORT}`);
   console.log(`📊 Status: http://localhost:${PORT}/status`);
   console.log(`🔗 Schema: http://localhost:${PORT}/ws402/schema/test-resource?duration=300`);
   console.log(`\n💳 Payment Network: ${baseProvider.getConnectionInfo().network}`);
   console.log(`💰 Chain ID: ${baseProvider.getConnectionInfo().chainId}`);
   console.log(`💰 Merchant Wallet: ${baseProvider.getConnectionInfo().merchantWallet}`);
-  console.log('\n===========================================');
+  console.log(`\n💡 Open http://localhost:${PORT} in your browser to start`);
+  console.log('===========================================');
 });

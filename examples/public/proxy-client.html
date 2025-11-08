@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WS402 Proxy Payment Client</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+    
+    .container {
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      max-width: 600px;
+      width: 100%;
+      padding: 40px;
+    }
+    
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 28px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .proxy-badge {
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      color: white;
+      padding: 5px 15px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+    
+    .architecture-info {
+      background: #f0f4ff;
+      border: 2px solid #6366f1;
+      border-radius: 10px;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+    
+    .architecture-info h3 {
+      color: #6366f1;
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+    
+    .architecture-info p {
+      font-size: 12px;
+      color: #555;
+      line-height: 1.5;
+    }
+    
+    .section {
+      margin-bottom: 25px;
+      padding: 20px;
+      background: #f8f9fa;
+      border-radius: 10px;
+    }
+    
+    .section h2 {
+      font-size: 18px;
+      margin-bottom: 15px;
+      color: #333;
+    }
+    
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+    
+    .label {
+      color: #666;
+      font-weight: 500;
+    }
+    
+    .value {
+      color: #333;
+      font-weight: 600;
+      word-break: break-all;
+    }
+    
+    .button {
+      width: 100%;
+      padding: 15px;
+      font-size: 16px;
+      font-weight: 600;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-bottom: 10px;
+    }
+    
+    .button-primary {
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      color: white;
+    }
+    
+    .button-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 20px rgba(99, 102, 241, 0.4);
+    }
+    
+    .button-secondary {
+      background: #6c757d;
+      color: white;
+    }
+    
+    .button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+    
+    .status {
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      font-size: 14px;
+    }
+    
+    .status-pending {
+      background: #fff3cd;
+      color: #856404;
+      border: 1px solid #ffeeba;
+    }
+    
+    .status-success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    
+    .status-error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    
+    .logs {
+      background: #1e1e1e;
+      color: #00ff00;
+      padding: 15px;
+      border-radius: 10px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      max-height: 200px;
+      overflow-y: auto;
+      margin-top: 20px;
+    }
+    
+    .log-entry {
+      margin-bottom: 5px;
+    }
+    
+    .gateway-badge {
+      display: inline-block;
+      background: #8b5cf6;
+      color: white;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      margin-left: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>
+      🔄 WS402 + Proxy
+      <span class="proxy-badge">GATEWAY MODE</span>
+    </h1>
+    <p class="subtitle">Centralized payment gateway for multiple WS402 servers</p>
+    
+    <div class="architecture-info">
+      <h3>🏗️ Architecture</h3>
+      <p>
+        This WS402 server uses a <strong>ProxyPaymentProvider</strong> that delegates 
+        all payment operations to a centralized gateway. The gateway holds private keys 
+        and processes refunds. This server is stateless regarding payments. 
+        <span class="gateway-badge">More Secure</span>
+      </p>
+    </div>
+    
+    <div id="statusMessage"></div>
+    
+    <div class="section" id="paymentSection">
+      <h2>💳 Payment Details</h2>
+      <div class="info-row">
+        <span class="label">Duration:</span>
+        <span class="value" id="duration">-</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Price per second:</span>
+        <span class="value" id="pricePerSecond">-</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Total (wei):</span>
+        <span class="value" id="totalWei">-</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Gateway:</span>
+        <span class="value" id="gatewayUrl">-</span>
+      </div>
+      
+      <button class="button button-primary" id="getSchemaBtn" onclick="getSchema()">
+        Get Payment Schema (via Gateway)
+      </button>
+      
+      <div id="blockchainDetails" style="display: none; margin-top: 15px; padding: 15px; background: #e7f3ff; border-radius: 8px;">
+        <p style="font-size: 12px; color: #555; margin-bottom: 10px;">
+          <strong>Blockchain Details:</strong>
+        </p>
+        <div class="info-row">
+          <span class="label">Network:</span>
+          <span class="value" id="network">-</span>
+        </div>
+        <div class="info-row">
+          <span class="label">Recipient:</span>
+          <span class="value" id="recipient" style="font-size: 11px;">-</span>
+        </div>
+        <div class="info-row">
+          <span class="label">Amount (ETH):</span>
+          <span class="value" id="amountETH">-</span>
+        </div>
+      </div>
+    </div>
+    
+    <div class="section" id="connectionSection" style="display: none;">
+      <h2>🔌 WebSocket Connection</h2>
+      <div class="info-row">
+        <span class="label">Session ID:</span>
+        <span class="value" id="sessionId">-</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Elapsed Time:</span>
+        <span class="value" id="elapsedTime">0s</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Balance:</span>
+        <span class="value" id="balance">-</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Messages:</span>
+        <span class="value" id="messageCount">0</span>
+      </div>
+      
+      <button class="button button-primary" id="connectBtn" onclick="connectWebSocket()" style="display: none;">
+        Connect & Send Payment Proof
+      </button>
+      
+      <button class="button button-secondary" id="disconnectBtn" onclick="disconnect()" style="display: none;">
+        Disconnect
+      </button>
+    </div>
+    
+    <div class="logs" id="logs"></div>
+  </div>
+
+  <script>
+    let ws = null;
+    let schema = null;
+    let userId = 'user_' + Math.random().toString(36).substr(2, 9);
+
+    function log(message) {
+      const logs = document.getElementById('logs');
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logs.appendChild(entry);
+      logs.scrollTop = logs.scrollHeight;
+    }
+
+    function showStatus(message, type = 'pending') {
+      const statusDiv = document.getElementById('statusMessage');
+      statusDiv.className = `status status-${type}`;
+      statusDiv.textContent = message;
+      statusDiv.style.display = 'block';
+    }
+
+    async function getSchema() {
+      try {
+        log('📤 Requesting schema from WS402 server...');
+        showStatus('⏳ Loading payment schema via gateway...', 'pending');
+        
+        const response = await fetch('http://localhost:4030/ws402/schema/premium-resource?duration=300');
+        schema = await response.json();
+        
+        log('✅ Schema received from gateway');
+        log(`Gateway: ${schema.paymentDetails.gateway || 'centralized'}`);
+        log(`Amount: ${schema.pricing.totalPrice} wei`);
+        
+        // Update UI
+        document.getElementById('duration').textContent = schema.pricing.estimatedDuration + 's';
+        document.getElementById('pricePerSecond').textContent = schema.pricing.pricePerSecond + ' wei';
+        document.getElementById('totalWei').textContent = schema.pricing.totalPrice + ' wei';
+        document.getElementById('gatewayUrl').textContent = schema.paymentDetails.gateway || 'Centralized Gateway';
+        
+        // Show blockchain details
+        if (schema.paymentDetails.network) {
+          document.getElementById('blockchainDetails').style.display = 'block';
+          document.getElementById('network').textContent = schema.paymentDetails.network;
+          document.getElementById('recipient').textContent = schema.paymentDetails.recipient;
+          document.getElementById('amountETH').textContent = schema.paymentDetails.amountETH + ' ETH';
+        }
+        
+        document.getElementById('connectBtn').style.display = 'block';
+        document.getElementById('connectionSection').style.display = 'block';
+        
+        showStatus('✅ Schema loaded from gateway. Ready to connect!', 'success');
+        
+      } catch (error) {
+        log('❌ Error: ' + error.message);
+        showStatus('❌ Failed to load schema from gateway', 'error');
+      }
+    }
+
+    function connectWebSocket() {
+      if (!schema) {
+        showStatus('❌ Get schema first!', 'error');
+        return;
+      }
+
+      log('🔌 Connecting to WebSocket...');
+      showStatus('⏳ Connecting to WebSocket...', 'pending');
+      
+      ws = new WebSocket(`ws://localhost:4030?userId=${userId}&resourceId=premium-resource`);
+      
+      ws.onopen = () => {
+        log('✅ WebSocket connected');
+        showStatus('⏳ Sending payment proof to gateway for verification...', 'pending');
+        
+        // Send simulated payment proof
+        // In production, this would come from actual blockchain transaction
+        const paymentProof = {
+          type: 'payment_proof',
+          proof: {
+            txHash: 'SIMULATED_TX_' + Date.now(),
+            reference: schema.paymentDetails.reference,
+            senderAddress: 'SIMULATED_ADDRESS',
+            amount: schema.pricing.totalPrice,
+          }
+        };
+        
+        log('📤 Sending payment proof (gateway will verify on-chain)...');
+        ws.send(JSON.stringify(paymentProof));
+        
+        document.getElementById('connectBtn').style.display = 'none';
+        document.getElementById('disconnectBtn').style.display = 'block';
+      };
+      
+      ws.onmessage = (event) => {
+        const message = JSON.parse(event.data);
+        log(`📨 ${message.type}`);
+        
+        if (message.type === 'session_started') {
+          document.getElementById('sessionId').textContent = message.sessionId;
+          showStatus('✅ Connected! Payment verified by gateway', 'success');
+        }
+        
+        if (message.type === 'usage_update') {
+          document.getElementById('elapsedTime').textContent = message.elapsedSeconds + 's';
+          document.getElementById('balance').textContent = message.remainingBalance + ' wei';
+          document.getElementById('messageCount').textContent = message.messageCount;
+        }
+        
+        if (message.type === 'balance_exhausted') {
+          showStatus('⚠️ Balance exhausted - refund processed by gateway', 'error');
+        }
+        
+        if (message.type === 'payment_rejected') {
+          showStatus('❌ Payment rejected by gateway: ' + message.reason, 'error');
+        }
+      };
+      
+      ws.onerror = (error) => {
+        log('❌ WebSocket error');
+        showStatus('❌ Connection error', 'error');
+      };
+      
+      ws.onclose = () => {
+        log('🔚 WebSocket closed (refund will be processed by gateway)');
+        showStatus('Connection closed', 'pending');
+        document.getElementById('disconnectBtn').style.display = 'none';
+        document.getElementById('connectBtn').style.display = 'block';
+      };
+    }
+
+    function disconnect() {
+      if (ws) {
+        ws.close();
+        ws = null;
+      }
+    }
+
+    // Initialize
+    log('🔄 WS402 Proxy Client ready');
+    log('💡 This client uses a centralized payment gateway');
+    log('User ID: ' + userId);
+  </script>
+</body>
+</html>

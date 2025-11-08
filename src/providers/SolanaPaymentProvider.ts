@@ -62,8 +62,6 @@ export class SolanaPaymentProvider implements PaymentProvider {
   }>;
 
   constructor(config: SolanaPaymentProviderConfig) {
-    super();
-
     this.connection = new Connection(config.rpcEndpoint, 'confirmed');
     this.merchantWallet = new PublicKey(config.merchantWallet);
     

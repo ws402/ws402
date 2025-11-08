@@ -9,6 +9,9 @@ export interface BasePaymentProviderConfig {
   /** Merchant wallet address to receive payments */
   merchantWallet: string;
   
+  /** Merchant private key for signing refund transactions */
+  merchantPrivateKey?: string;
+  
   /** Network: 'base' | 'base-goerli' | 'base-sepolia' */
   network?: 'base' | 'base-goerli' | 'base-sepolia';
   
@@ -23,6 +26,9 @@ export interface BasePaymentProviderConfig {
   
   /** Chain ID */
   chainId?: number;
+  
+  /** Enable automatic refunds (requires merchantPrivateKey) */
+  autoRefund?: boolean;
 }
 
 /**
@@ -37,7 +43,11 @@ export interface BasePaymentProviderConfig {
 export class BasePaymentProvider implements PaymentProvider {
   private provider: ethers.JsonRpcProvider;
   private merchantWallet: string;
-  private config: Required<Omit<BasePaymentProviderConfig, 'erc20Token'>> & { erc20Token?: string };
+  private wallet?: ethers.Wallet;
+  private config: Required<Omit<BasePaymentProviderConfig, 'erc20Token' | 'merchantPrivateKey'>> & { 
+    erc20Token?: string;
+    merchantPrivateKey?: string;
+  };
   private pendingPayments: Map<string, {
     amount: number;
     amountETH: string;
@@ -48,6 +58,26 @@ export class BasePaymentProvider implements PaymentProvider {
   constructor(config: BasePaymentProviderConfig) {
     this.provider = new ethers.JsonRpcProvider(config.rpcEndpoint);
     this.merchantWallet = config.merchantWallet;
+    
+    // Initialize wallet if private key is provided
+    if (config.merchantPrivateKey) {
+      try {
+        this.wallet = new ethers.Wallet(config.merchantPrivateKey, this.provider);
+        this.log('✅ Wallet initialized with private key - refunds enabled');
+        
+        // Verify wallet address matches merchant wallet
+        if (this.wallet.address.toLowerCase() !== config.merchantWallet.toLowerCase()) {
+          this.log('⚠️  WARNING: Private key address does not match merchant wallet!');
+          this.log(`   Private key: ${this.wallet.address}`);
+          this.log(`   Merchant wallet: ${config.merchantWallet}`);
+        }
+      } catch (error: any) {
+        this.log('❌ Failed to initialize wallet:', error.message);
+        throw new Error('Invalid merchant private key');
+      }
+    } else {
+      this.log('⚠️  No private key provided - refunds will not be automatic');
+    }
     
     const networkConfigs = {
       'base': { chainId: 8453 },
@@ -64,7 +94,9 @@ export class BasePaymentProvider implements PaymentProvider {
       conversionRate: config.conversionRate || 1,
       paymentTimeout: config.paymentTimeout || 300000, // 5 minutes
       chainId: config.chainId || networkConfig.chainId,
+      autoRefund: config.autoRefund !== false, // Default true
       erc20Token: config.erc20Token,
+      merchantPrivateKey: config.merchantPrivateKey,
     };
 
     this.pendingPayments = new Map();
@@ -262,33 +294,67 @@ export class BasePaymentProvider implements PaymentProvider {
         refundWei,
       });
 
-      // Note: Actual refund transaction would require merchant private key
-      // This is a placeholder - in production, integrate with your wallet system
-      this.log('⚠️  Refund prepared - requires merchant wallet signature', {
-        to: senderAddress,
-        amount: refundETH + ' ETH',
-        network: this.config.network,
-        chainId: this.config.chainId,
-      });
+      // Check if automatic refunds are enabled and wallet is available
+      if (!this.config.autoRefund || !this.wallet) {
+        this.log('⚠️  Automatic refunds disabled or no private key - manual refund required', {
+          to: senderAddress,
+          amount: refundETH + ' ETH',
+          network: this.config.network,
+          chainId: this.config.chainId,
+        });
+        return;
+      }
 
-      // In production, you would:
-      // 1. Create transaction with merchant wallet
-      // 2. Sign and send transaction
-      // 3. Wait for confirmation
-      
-      // Example structure (requires merchant private key):
-      /*
-      const wallet = new ethers.Wallet(MERCHANT_PRIVATE_KEY, this.provider);
-      const tx = await wallet.sendTransaction({
-        to: senderAddress,
-        value: ethers.parseEther(refundETH),
-        data: ethers.toUtf8Bytes('WS402 Refund'),
-      });
-      await tx.wait();
-      */
+      // Execute automatic refund
+      this.log('💸 Sending refund transaction...');
+
+      try {
+        // Get current gas price
+        const feeData = await this.provider.getFeeData();
+        
+        // Prepare transaction
+        const tx = await this.wallet.sendTransaction({
+          to: senderAddress,
+          value: ethers.parseEther(refundETH),
+          gasLimit: 21000, // Standard ETH transfer
+          maxFeePerGas: feeData.maxFeePerGas,
+          maxPriorityFeePerGas: feeData.maxPriorityFeePerGas,
+        });
+
+        this.log('⏳ Refund transaction sent, waiting for confirmation...', {
+          txHash: tx.hash,
+          to: senderAddress,
+          amount: refundETH + ' ETH',
+        });
+
+        // Wait for confirmation
+        const receipt = await tx.wait();
+
+        if (receipt && receipt.status === 1) {
+          this.log('✅ Refund confirmed!', {
+            txHash: receipt.hash,
+            blockNumber: receipt.blockNumber,
+            gasUsed: receipt.gasUsed.toString(),
+          });
+        } else {
+          throw new Error('Refund transaction failed');
+        }
+
+      } catch (txError: any) {
+        this.log('❌ Refund transaction error:', txError.message);
+        
+        // Check for common errors
+        if (txError.code === 'INSUFFICIENT_FUNDS') {
+          throw new Error('Insufficient funds in merchant wallet for refund');
+        } else if (txError.code === 'NONCE_EXPIRED') {
+          throw new Error('Transaction nonce expired - please retry');
+        } else {
+          throw new Error(`Refund transaction failed: ${txError.message}`);
+        }
+      }
 
     } catch (error: any) {
-      this.log('Refund error', error.message);
+      this.log('❌ Refund error:', error.message);
       throw new Error(`Refund failed: ${error.message}`);
     }
   }
@@ -403,6 +469,8 @@ export class BasePaymentProvider implements PaymentProvider {
       chainId: this.config.chainId,
       merchantWallet: this.merchantWallet,
       erc20Token: this.config.erc20Token,
+      autoRefundEnabled: this.config.autoRefund && !!this.wallet,
+      walletConnected: !!this.wallet,
     };
   }
 }
