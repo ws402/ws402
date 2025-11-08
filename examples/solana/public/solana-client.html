@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WS402 Solana Client - Pay-Per-Use WebSocket</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      color: #333;
+    }
+
+    .container {
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 800px;
+      width: 100%;
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #14F195 0%, #9945FF 100%);
+      padding: 30px;
+      text-align: center;
+      color: white;
+    }
+
+    .header h1 {
+      font-size: 28px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .header p {
+      opacity: 0.95;
+      font-size: 14px;
+    }
+
+    .content {
+      padding: 30px;
+    }
+
+    .section {
+      margin-bottom: 25px;
+      padding: 20px;
+      background: #f8f9fa;
+      border-radius: 12px;
+      border-left: 4px solid #9945FF;
+    }
+
+    .section h2 {
+      font-size: 18px;
+      margin-bottom: 15px;
+      color: #333;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .status-disconnected {
+      background: #fee;
+      color: #c00;
+    }
+
+    .status-connecting {
+      background: #fef3cd;
+      color: #856404;
+    }
+
+    .status-awaiting {
+      background: #d1ecf1;
+      color: #0c5460;
+    }
+
+    .status-connected {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .input-group {
+      margin-bottom: 15px;
+    }
+
+    .input-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+      font-size: 14px;
+      color: #555;
+    }
+
+    .input-group input {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.3s;
+    }
+
+    .input-group input:focus {
+      outline: none;
+      border-color: #9945FF;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #14F195 0%, #9945FF 100%);
+      color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(153, 69, 255, 0.4);
+    }
+
+    .btn-danger {
+      background: #dc3545;
+      color: white;
+    }
+
+    .btn-danger:hover:not(:disabled) {
+      background: #c82333;
+    }
+
+    .qr-container {
+      text-align: center;
+      padding: 20px;
+      background: white;
+      border-radius: 8px;
+      margin-top: 15px;
+    }
+
+    .qr-code {
+      max-width: 300px;
+      margin: 0 auto 15px;
+    }
+
+    .payment-url {
+      word-break: break-all;
+      background: #f8f9fa;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      color: #666;
+      margin-top: 10px;
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-top: 15px;
+    }
+
+    .info-item {
+      background: white;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #e0e0e0;
+    }
+
+    .info-item label {
+      display: block;
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 5px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .info-item value {
+      display: block;
+      font-size: 16px;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .log {
+      background: #1e1e1e;
+      color: #00ff00;
+      padding: 15px;
+      border-radius: 8px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      max-height: 250px;
+      overflow-y: auto;
+      line-height: 1.6;
+    }
+
+    .log-entry {
+      margin-bottom: 5px;
+    }
+
+    .log-timestamp {
+      color: #888;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: #e0e0e0;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #14F195 0%, #9945FF 100%);
+      transition: width 0.3s ease;
+    }
+
+    .wallet-info {
+      background: white;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid #e0e0e0;
+    }
+
+    .wallet-address {
+      font-family: monospace;
+      font-size: 13px;
+      color: #666;
+      flex: 1;
+    }
+
+    .instructions {
+      background: #e7f3ff;
+      border-left: 4px solid #2196F3;
+      padding: 15px;
+      border-radius: 8px;
+      margin-top: 15px;
+    }
+
+    .instructions h3 {
+      font-size: 14px;
+      margin-bottom: 10px;
+      color: #1976D2;
+    }
+
+    .instructions ol {
+      margin-left: 20px;
+      font-size: 13px;
+      color: #555;
+      line-height: 1.8;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .pulse {
+      animation: pulse 2s infinite;
+    }
+
+    .network-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      background: #14F195;
+      color: #1e1e1e;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-left: 10px;
+    }
+
+    .solana-logo {
+      width: 24px;
+      height: 24px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>
+        <svg class="solana-logo" viewBox="0 0 397.7 311.7" fill="currentColor">
+          <defs>
+            <linearGradient id="gradient" x1="360.8791" y1="351.4553" x2="141.213" y2="-69.2936" gradientUnits="userSpaceOnUse">
+              <stop offset="0" style="stop-color:#00FFA3"/>
+              <stop offset="1" style="stop-color:#DC1FFF"/>
+            </linearGradient>
+          </defs>
+          <path d="M64.6,237.9c2.4-2.4,5.7-3.8,9.2-3.8h317.4c5.8,0,8.7,7,4.6,11.1l-62.7,62.7c-2.4,2.4-5.7,3.8-9.2,3.8H6.5 c-5.8,0-8.7-7-4.6-11.1L64.6,237.9z" fill="url(#gradient)"/>
+          <path d="M64.6,3.8C67.1,1.4,70.4,0,73.8,0h317.4c5.8,0,8.7,7,4.6,11.1l-62.7,62.7c-2.4,2.4-5.7,3.8-9.2,3.8H6.5 c-5.8,0-8.7-7-4.6-11.1L64.6,3.8z" fill="url(#gradient)"/>
+          <path d="M333.1,120.1c-2.4-2.4-5.7-3.8-9.2-3.8H6.5c-5.8,0-8.7,7-4.6,11.1l62.7,62.7c2.4,2.4,5.7,3.8,9.2,3.8h317.4 c5.8,0,8.7-7,4.6-11.1L333.1,120.1z" fill="url(#gradient)"/>
+        </svg>
+        WS402 Solana Client
+        <span class="network-badge" id="networkBadge">MAINNET</span>
+      </h1>
+      <p>Pay-Per-Use WebSocket with Solana Pay</p>
+    </div>
+
+    <div class="content">
+      <!-- Wallet Connection -->
+      <div class="section">
+        <h2>🔐 Wallet Connection</h2>
+        <div id="walletSection">
+          <button class="btn btn-primary" id="connectWalletBtn" onclick="connectWallet()">
+            <span>Connect Phantom Wallet</span>
+          </button>
+          <div id="walletInfo" style="display: none;" class="wallet-info">
+            <span>🟢</span>
+            <span class="wallet-address" id="walletAddress"></span>
+            <button class="btn btn-danger" onclick="disconnectWallet()" style="width: auto; padding: 8px 16px; font-size: 14px;">Disconnect</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Connection Setup -->
+      <div class="section">
+        <h2>⚙️ Connection Setup</h2>
+        <div class="input-group">
+          <label for="resourceId">Resource ID</label>
+          <input type="text" id="resourceId" value="test-resource" placeholder="Enter resource ID">
+        </div>
+        <div class="input-group">
+          <label for="duration">Duration (seconds)</label>
+          <input type="number" id="duration" value="30" min="1" max="300" placeholder="Enter duration">
+        </div>
+        <button class="btn btn-primary" id="connectBtn" onclick="initializeConnection()" disabled>
+          <span>📡 Initialize Connection</span>
+        </button>
+      </div>
+
+      <!-- Payment Information -->
+      <div class="section" id="paymentSection" style="display: none;">
+        <h2>💰 Payment Required</h2>
+        <div id="paymentInfo" class="info-grid"></div>
+        <div id="qrSection" class="qr-container">
+          <h3>Scan with Solana Wallet</h3>
+          <canvas id="qrCode" class="qr-code"></canvas>
+          <div class="payment-url" id="paymentUrl"></div>
+          <button class="btn btn-primary" id="payWithPhantomBtn" onclick="payWithPhantom()">
+            <span>💳 Pay with Phantom</span>
+          </button>
+        </div>
+        <div class="instructions">
+          <h3>📱 How to Pay</h3>
+          <ol>
+            <li>Click "Pay with Phantom" button above (recommended)</li>
+            <li>Or scan the QR code with your Solana mobile wallet</li>
+            <li>Approve the transaction in your wallet</li>
+            <li>Connection will start automatically after payment</li>
+          </ol>
+        </div>
+      </div>
+
+      <!-- Session Status -->
+      <div class="section">
+        <h2>📊 Session Status</h2>
+        <div class="status-badge status-disconnected" id="statusBadge">Disconnected</div>
+        <div id="sessionInfo" class="info-grid"></div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressBar" style="width: 0%"></div>
+        </div>
+        <button class="btn btn-danger" id="disconnectBtn" onclick="disconnect()" disabled style="margin-top: 15px;">
+          <span>🔌 Disconnect</span>
+        </button>
+      </div>
+
+      <!-- Activity Log -->
+      <div class="section">
+        <h2>📝 Activity Log</h2>
+        <div class="log" id="log"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script>
+    let ws = null;
+    let walletConnected = false;
+    let walletPublicKey = null;
+    let currentPaymentDetails = null;
+    let sessionData = null;
+
+    // Initialize
+    window.addEventListener('load', () => {
+      log('🚀 WS402 Solana Client initialized');
+      checkWalletConnection();
+    });
+
+    // Check if Phantom wallet is installed
+    function checkWalletConnection() {
+      if ('solana' in window && window.solana?.isPhantom) {
+        log('👻 Phantom wallet detected');
+        window.solana.on('connect', (publicKey) => {
+          onWalletConnected(publicKey);
+        });
+        window.solana.on('disconnect', () => {
+          onWalletDisconnected();
+        });
+        
+        // Check if already connected
+        if (window.solana.isConnected) {
+          window.solana.connect({ onlyIfTrusted: true })
+            .then(({ publicKey }) => onWalletConnected(publicKey))
+            .catch(() => {});
+        }
+      } else {
+        log('⚠️ Phantom wallet not detected. Install from https://phantom.app/');
+      }
+    }
+
+    // Connect wallet
+    async function connectWallet() {
+      if (!('solana' in window)) {
+        alert('Phantom wallet not detected! Please install from https://phantom.app/');
+        window.open('https://phantom.app/', '_blank');
+        return;
+      }
+
+      try {
+        log('🔄 Connecting to Phantom wallet...');
+        const { publicKey } = await window.solana.connect();
+        onWalletConnected(publicKey);
+      } catch (error) {
+        log(`❌ Wallet connection failed: ${error.message}`);
+      }
+    }
+
+    // Wallet connected callback
+    function onWalletConnected(publicKey) {
+      walletConnected = true;
+      walletPublicKey = publicKey.toString();
+      
+      document.getElementById('connectWalletBtn').style.display = 'none';
+      document.getElementById('walletInfo').style.display = 'flex';
+      document.getElementById('walletAddress').textContent = 
+        walletPublicKey.slice(0, 4) + '...' + walletPublicKey.slice(-4);
+      document.getElementById('connectBtn').disabled = false;
+      
+      log(`✅ Wallet connected: ${walletPublicKey.slice(0, 8)}...`);
+    }
+
+    // Disconnect wallet
+    async function disconnectWallet() {
+      if (window.solana) {
+        await window.solana.disconnect();
+      }
+      onWalletDisconnected();
+    }
+
+    // Wallet disconnected callback
+    function onWalletDisconnected() {
+      walletConnected = false;
+      walletPublicKey = null;
+      
+      document.getElementById('connectWalletBtn').style.display = 'block';
+      document.getElementById('walletInfo').style.display = 'none';
+      document.getElementById('connectBtn').disabled = true;
+      
+      log('👋 Wallet disconnected');
+      
+      if (ws) {
+        disconnect();
+      }
+    }
+
+    // Initialize WS402 connection
+    async function initializeConnection() {
+      if (!walletConnected) {
+        alert('Please connect your wallet first!');
+        return;
+      }
+
+      const resourceId = document.getElementById('resourceId').value;
+      const duration = parseInt(document.getElementById('duration').value);
+
+      if (!resourceId || duration < 1) {
+        alert('Please enter valid resource ID and duration');
+        return;
+      }
+
+      try {
+        log(`🔄 Initializing connection for ${duration}s...`);
+        updateStatus('connecting');
+
+        // Fetch WS402 schema
+        const response = await fetch(`/ws402/schema/${resourceId}?duration=${duration}`);
+        const schema = await response.json();
+
+        log(`📄 Received WS402 schema`);
+        
+        // DEBUG: Log the complete schema structure
+        console.log('=== SCHEMA DEBUG ===');
+        console.log('Full schema:', schema);
+        console.log('Keys:', Object.keys(schema));
+        console.log('paymentDetails exists?', !!schema.paymentDetails);
+        console.log('pricing exists?', !!schema.pricing);
+        console.log('===================');
+        
+        sessionData = schema;
+
+        // Check if paymentDetails exists
+        if (!schema.paymentDetails) {
+          console.error('Schema structure:', JSON.stringify(schema, null, 2));
+          throw new Error('Invalid schema: paymentDetails missing');
+        }
+
+        // Update network badge
+        const network = schema.paymentDetails.network || 'mainnet-beta';
+        const networkBadge = document.getElementById('networkBadge');
+        networkBadge.textContent = network.toUpperCase();
+        if (network === 'devnet') {
+          networkBadge.style.background = '#ffc107';
+        }
+
+        // Display payment information
+        displayPaymentInfo(schema);
+        updateStatus('awaiting');
+
+        // Connect WebSocket
+        connectWebSocket(schema);
+
+      } catch (error) {
+        log(`❌ Connection failed: ${error.message}`);
+        console.error('Full error:', error); // Debug log
+        updateStatus('disconnected');
+      }
+    }
+
+    // Display payment information
+    function displayPaymentInfo(schema) {
+      const details = schema.paymentDetails;
+      const pricing = schema.pricing;
+      currentPaymentDetails = details;
+
+      // Get lamports per SOL constant
+      const LAMPORTS_PER_SOL = 1000000000;
+      
+      // Calculate amounts in SOL
+      const amountSOL = details.amountSOL || (details.amount / LAMPORTS_PER_SOL).toFixed(9);
+      const pricePerSecondSOL = pricing ? 
+        (pricing.pricePerSecond / LAMPORTS_PER_SOL).toFixed(9) : 
+        (parseFloat(amountSOL) / pricing.estimatedDuration).toFixed(9);
+
+      const paymentInfo = document.getElementById('paymentInfo');
+      paymentInfo.innerHTML = `
+        <div class="info-item">
+          <label>Amount</label>
+          <value>${amountSOL} SOL</value>
+        </div>
+        <div class="info-item">
+          <label>Lamports</label>
+          <value>${details.amount.toLocaleString()}</value>
+        </div>
+        <div class="info-item">
+          <label>Duration</label>
+          <value>${pricing.estimatedDuration} seconds</value>
+        </div>
+        <div class="info-item">
+          <label>Price/Second</label>
+          <value>${pricePerSecondSOL} SOL</value>
+        </div>
+        <div class="info-item">
+          <label>Network</label>
+          <value>${details.network || 'mainnet-beta'}</value>
+        </div>
+        <div class="info-item">
+          <label>Merchant</label>
+          <value>${details.recipient.slice(0, 8)}...</value>
+        </div>
+        <div class="info-item">
+          <label>Expires</label>
+          <value>${new Date(details.expiresAt).toLocaleTimeString()}</value>
+        </div>
+      `;
+
+      document.getElementById('paymentSection').style.display = 'block';
+      document.getElementById('paymentUrl').textContent = details.solanaPayURL;
+
+      // Generate QR code
+      const qrCanvas = document.getElementById('qrCode');
+      
+      if (typeof QRCode !== 'undefined') {
+        QRCode.toCanvas(
+          qrCanvas,
+          details.solanaPayURL,
+          { width: 300, margin: 2 },
+          (error) => {
+            if (error) {
+              log(`❌ QR code generation failed: ${error.message}`);
+              qrCanvas.style.display = 'none';
+            } else {
+              log('📱 QR code generated');
+            }
+          }
+        );
+      } else {
+        log('⚠️ QRCode library not loaded, hiding QR');
+        qrCanvas.style.display = 'none';
+        // Show payment URL more prominently
+        document.getElementById('paymentUrl').style.fontSize = '14px';
+      }
+    }
+
+    // Pay with Phantom wallet  
+    async function payWithPhantom() {
+      if (!walletConnected) {
+        alert('Please connect your wallet first!');
+        return;
+      }
+
+      if (!currentPaymentDetails) {
+        alert('No payment details available');
+        return;
+      }
+
+      try {
+        log('🔄 Creating payment transaction...');
+        
+        const recipient = new solanaWeb3.PublicKey(currentPaymentDetails.recipient);
+        const reference = new solanaWeb3.PublicKey(currentPaymentDetails.reference);
+        const amount = parseInt(currentPaymentDetails.amount);
+        
+        log(`💰 Amount: ${currentPaymentDetails.amountSOL} SOL`);
+        log(`📍 To: ${currentPaymentDetails.recipient.slice(0, 8)}...`);
+        
+        // Get blockhash from our server (uses our secure RPC)
+        log('📡 Getting blockhash from server...');
+        const blockhashResponse = await fetch('/blockhash');
+        const { blockhash, lastValidBlockHeight } = await blockhashResponse.json();
+        
+        log('✅ Blockhash received');
+        
+        // Create the transaction
+        const transaction = new solanaWeb3.Transaction();
+        transaction.recentBlockhash = blockhash;
+        transaction.lastValidBlockHeight = lastValidBlockHeight;
+        transaction.feePayer = window.solana.publicKey;
+        
+        // Create transfer instruction
+        const transferIx = solanaWeb3.SystemProgram.transfer({
+          fromPubkey: window.solana.publicKey,
+          toPubkey: recipient,
+          lamports: amount,
+        });
+        
+        // Add reference as a readonly key to the instruction for tracking
+        transferIx.keys.push({
+          pubkey: reference,
+          isSigner: false,
+          isWritable: false,
+        });
+        
+        transaction.add(transferIx);
+        
+        log('📤 Requesting approval from Phantom...');
+        
+        // Sign and send via Phantom
+        const { signature } = await window.solana.signAndSendTransaction(transaction);
+        
+        log(`✅ Transaction sent!`);
+        log(`🔗 Signature: ${signature.slice(0, 8)}...`);
+        log(`⏳ Waiting for server verification...`);
+        
+        // Send payment proof to server
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'payment_proof',
+            proof: {
+              signature: signature,
+              reference: currentPaymentDetails.reference,
+              senderWallet: walletPublicKey,
+            }
+          }));
+          log('📨 Payment proof sent to server');
+          log('⏱️  Server is verifying transaction on-chain...');
+        } else {
+          log('❌ WebSocket disconnected');
+          alert('Connection lost. Please refresh and reconnect.');
+        }
+
+      } catch (error) {
+        console.error('Payment error:', error);
+        
+        if (error.code === 4001 || error.message?.includes('User rejected')) {
+          log('❌ Transaction cancelled by user');
+        } else if (error.message?.includes('Attempt to debit')) {
+          log('❌ Insufficient balance');
+          alert('Insufficient SOL balance. Please add funds to your wallet.');
+        } else {
+          log(`❌ Payment failed: ${error.message}`);
+          alert(`Payment failed: ${error.message}\n\nTry:\n1. Ensure you have enough SOL\n2. Check you're on the right network (mainnet/devnet)`);
+        }
+      }
+    }
+
+    // Connect WebSocket
+    function connectWebSocket(schema) {
+      const wsUrl = `ws://localhost:4028`;
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        log('🔌 WebSocket connected');
+        
+        // Send initial WS402 message with payment proof placeholder
+        // In WS402, we need to wait for the actual payment before sending proof
+        ws.send(JSON.stringify({
+          type: 'ws402:init',
+          resourceId: schema.resourceId,
+          userId: walletPublicKey,
+        }));
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          handleWebSocketMessage(message);
+        } catch (error) {
+          log(`📨 Message: ${event.data}`);
+        }
+      };
+
+      ws.onerror = (error) => {
+        log(`❌ WebSocket error: ${error.message || 'Connection error'}`);
+      };
+
+      ws.onclose = () => {
+        log('🔌 WebSocket disconnected');
+        updateStatus('disconnected');
+        document.getElementById('disconnectBtn').disabled = true;
+      };
+    }
+
+    // Handle WebSocket messages
+    function handleWebSocketMessage(message) {
+      switch (message.type) {
+        case 'payment_rejected':
+          log(`❌ Payment rejected: ${message.reason}`);
+          updateStatus('disconnected');
+          break;
+
+        case 'session_started':
+          log('✅ Payment verified! Session started');
+          log(`   Session ID: ${message.sessionId}`);
+          log(`   Balance: ${message.balance} lamports`);
+          updateStatus('connected');
+          document.getElementById('disconnectBtn').disabled = false;
+          document.getElementById('paymentSection').style.display = 'none';
+          break;
+
+        case 'usage_update':
+          updateSessionInfo(message);
+          break;
+
+        case 'balance_exhausted':
+          log('⚠️ Balance exhausted - session ending');
+          updateStatus('disconnected');
+          break;
+
+        case 'max_duration_reached':
+          log('⏰ Maximum session duration reached');
+          updateStatus('disconnected');
+          break;
+
+        default:
+          log(`📨 ${message.type}: ${JSON.stringify(message).slice(0, 100)}`);
+      }
+    }
+
+    // Update session info
+    function updateSessionInfo(message) {
+      const info = document.getElementById('sessionInfo');
+      const lamportsPerSol = 1000000000;
+      
+      const consumedSOL = (message.consumedAmount / lamportsPerSol).toFixed(9);
+      const remainingSOL = (message.remainingBalance / lamportsPerSol).toFixed(9);
+      
+      // Get paid amount from current payment details
+      const paidAmount = currentPaymentDetails ? currentPaymentDetails.amount : 0;
+      const paidSOL = (paidAmount / lamportsPerSol).toFixed(9);
+      
+      info.innerHTML = `
+        <div class="info-item">
+          <label>Session ID</label>
+          <value>${message.sessionId.slice(0, 8)}...</value>
+        </div>
+        <div class="info-item">
+          <label>Elapsed Time</label>
+          <value>${message.elapsedSeconds}s</value>
+        </div>
+        <div class="info-item">
+          <label>Paid Amount</label>
+          <value>${paidSOL} SOL</value>
+        </div>
+        <div class="info-item">
+          <label>Consumed</label>
+          <value>${consumedSOL} SOL</value>
+        </div>
+        <div class="info-item">
+          <label>Remaining</label>
+          <value>${remainingSOL} SOL</value>
+        </div>
+        <div class="info-item">
+          <label>Messages</label>
+          <value>${message.messageCount || 0}</value>
+        </div>
+      `;
+
+      // Update progress bar
+      const progress = paidAmount > 0 ? (message.consumedAmount / paidAmount) * 100 : 0;
+      document.getElementById('progressBar').style.width = `${progress}%`;
+    }
+
+    // Update status
+    function updateStatus(status) {
+      const badge = document.getElementById('statusBadge');
+      badge.className = `status-badge status-${status}`;
+      
+      const statusText = {
+        disconnected: 'Disconnected',
+        connecting: 'Connecting',
+        awaiting: 'Awaiting Payment',
+        connected: 'Connected'
+      };
+      
+      badge.textContent = statusText[status] || status;
+    }
+
+    // Disconnect
+    function disconnect() {
+      if (ws) {
+        ws.close();
+        ws = null;
+      }
+      updateStatus('disconnected');
+      document.getElementById('disconnectBtn').disabled = true;
+      document.getElementById('paymentSection').style.display = 'none';
+      log('👋 Disconnected');
+    }
+
+    // Log message
+    function log(message) {
+      const logElement = document.getElementById('log');
+      const timestamp = new Date().toLocaleTimeString();
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      entry.innerHTML = `<span class="log-timestamp">[${timestamp}]</span> ${message}`;
+      logElement.appendChild(entry);
+      logElement.scrollTop = logElement.scrollHeight;
+      console.log(message);
+    }
+  </script>
+
+  <!-- Solana Web3.js (for transaction handling) -->
+  <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+</body>
+</html>

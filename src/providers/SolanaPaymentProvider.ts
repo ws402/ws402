@@ -7,9 +7,11 @@ import {
   SystemProgram,
   LAMPORTS_PER_SOL,
   ParsedTransactionWithMeta,
+  Keypair,
 } from '@solana/web3.js';
 import { encodeURL, createQR } from '@solana/pay';
 import BigNumber from 'bignumber.js';
+import { webcrypto } from 'crypto';
 
 export interface SolanaPaymentProviderConfig {
   /** Solana RPC endpoint URL */
@@ -17,6 +19,9 @@ export interface SolanaPaymentProviderConfig {
   
   /** Merchant wallet address to receive payments */
   merchantWallet: string;
+  
+  /** Merchant private key for refunds (optional - array of numbers from wallet JSON) */
+  merchantPrivateKey?: number[];
   
   /** Network: 'mainnet-beta' | 'devnet' | 'testnet' */
   network?: 'mainnet-beta' | 'devnet' | 'testnet';
@@ -38,6 +43,9 @@ export interface SolanaPaymentProviderConfig {
   
   /** Memo for transaction */
   memo?: string;
+  
+  /** Enable automatic refunds (requires merchantPrivateKey) */
+  autoRefund?: boolean;
 }
 
 /**
@@ -53,7 +61,11 @@ export interface SolanaPaymentProviderConfig {
 export class SolanaPaymentProvider implements PaymentProvider {
   private connection: Connection;
   private merchantWallet: PublicKey;
-  private config: Required<Omit<SolanaPaymentProviderConfig, 'splToken'>> & { splToken?: string };
+  private merchantKeypair: Keypair | null;
+  private config: Required<Omit<SolanaPaymentProviderConfig, 'splToken' | 'merchantPrivateKey'>> & { 
+    splToken?: string;
+    autoRefund: boolean;
+  };
   private pendingPayments: Map<string, {
     amount: number;
     amountSOL: BigNumber;
@@ -65,6 +77,17 @@ export class SolanaPaymentProvider implements PaymentProvider {
     this.connection = new Connection(config.rpcEndpoint, 'confirmed');
     this.merchantWallet = new PublicKey(config.merchantWallet);
     
+    // Initialize keypair if private key provided
+    this.merchantKeypair = null;
+    if (config.merchantPrivateKey && config.merchantPrivateKey.length === 64) {
+      try {
+        this.merchantKeypair = Keypair.fromSecretKey(Uint8Array.from(config.merchantPrivateKey));
+        this.log('Merchant keypair loaded - automatic refunds enabled');
+      } catch (error: any) {
+        this.log('Warning: Failed to load merchant keypair', error.message);
+      }
+    }
+    
     this.config = {
       rpcEndpoint: config.rpcEndpoint,
       merchantWallet: config.merchantWallet,
@@ -75,6 +98,7 @@ export class SolanaPaymentProvider implements PaymentProvider {
       message: config.message || 'Pay for WebSocket resource access',
       memo: config.memo || 'WS402',
       splToken: config.splToken,
+      autoRefund: config.autoRefund !== false && this.merchantKeypair !== null, // Enable by default if keypair available
     };
 
     this.pendingPayments = new Map();
@@ -186,10 +210,37 @@ export class SolanaPaymentProvider implements PaymentProvider {
         };
       }
 
-      // Fetch transaction from blockchain
-      const tx = await this.connection.getParsedTransaction(signature, {
-        maxSupportedTransactionVersion: 0,
-      });
+      // Fetch transaction from blockchain with retries
+      this.log('Fetching transaction from blockchain...', { signature });
+      
+      let tx: ParsedTransactionWithMeta | null = null;
+      const maxRetries = 10;
+      const retryDelay = 2000; // 2 seconds
+      
+      for (let i = 0; i < maxRetries; i++) {
+        try {
+          tx = await this.connection.getParsedTransaction(signature, {
+            maxSupportedTransactionVersion: 0,
+            commitment: 'confirmed',
+          });
+          
+          if (tx) {
+            this.log('Transaction found on blockchain', { attempt: i + 1 });
+            break;
+          }
+          
+          // Transaction not found yet, wait and retry
+          if (i < maxRetries - 1) {
+            this.log(`Transaction not found yet, retrying... (${i + 1}/${maxRetries})`);
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+          }
+        } catch (error: any) {
+          this.log('Error fetching transaction', { attempt: i + 1, error: error.message });
+          if (i < maxRetries - 1) {
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+          }
+        }
+      }
 
       if (!tx) {
         return {
@@ -255,18 +306,32 @@ export class SolanaPaymentProvider implements PaymentProvider {
         throw new Error('Sender wallet address required for refund');
       }
 
+      // Validate sender wallet address
+      let recipientPubkey: PublicKey;
+      try {
+        recipientPubkey = new PublicKey(senderWallet);
+      } catch (error) {
+        throw new Error(`Invalid sender wallet address: ${senderWallet}`);
+      }
+
       this.log('Issuing Solana refund', {
         amount,
         recipient: senderWallet,
         originalTx: signature,
       });
 
-      // Convert refund amount to SOL
+      // Convert refund amount to lamports
       const refundSOL = new BigNumber(amount)
         .dividedBy(this.config.conversionRate)
         .dividedBy(LAMPORTS_PER_SOL);
 
-      const lamports = refundSOL.multipliedBy(LAMPORTS_PER_SOL).toNumber();
+      const lamports = Math.floor(refundSOL.multipliedBy(LAMPORTS_PER_SOL).toNumber());
+
+      // Check if amount is too small
+      if (lamports < 1) {
+        this.log('Refund amount too small, skipping', { lamports });
+        return;
+      }
 
       this.log('Refund calculated', {
         amount,
@@ -274,36 +339,121 @@ export class SolanaPaymentProvider implements PaymentProvider {
         lamports,
       });
 
-      // Note: Actual refund transaction would require merchant private key
-      // This is a placeholder - in production, integrate with your wallet system
-      this.log('⚠️  Refund prepared - requires merchant wallet signature', {
-        to: senderWallet,
-        amount: lamports,
-        memo: `WS402 Refund - Original TX: ${signature}`,
-      });
+      // Check if auto-refund is enabled and keypair is available
+      if (!this.config.autoRefund || !this.merchantKeypair) {
+        this.log('⚠️  Auto-refund disabled or keypair not available', {
+          autoRefund: this.config.autoRefund,
+          hasKeypair: this.merchantKeypair !== null,
+        });
+        this.log('Refund prepared but not sent', {
+          to: senderWallet,
+          amount: lamports,
+          memo: `WS402 Refund - Original TX: ${signature?.slice(0, 20)}...`,
+        });
+        return;
+      }
 
-      // In production, you would:
-      // 1. Create transaction with merchant keypair
-      // 2. Sign and send transaction
-      // 3. Wait for confirmation
+      // Check merchant balance
+      const merchantBalance = await this.connection.getBalance(this.merchantWallet);
+      const minBalance = 5000; // Keep 5000 lamports (0.000005 SOL) for rent
       
-      // Example structure (requires merchant keypair):
-      /*
+      if (merchantBalance < lamports + minBalance) {
+        throw new Error(
+          `Insufficient merchant balance. Need ${lamports + minBalance} lamports, have ${merchantBalance} lamports`
+        );
+      }
+
+      // Create refund transaction
       const transaction = new Transaction().add(
         SystemProgram.transfer({
           fromPubkey: this.merchantWallet,
-          toPubkey: new PublicKey(senderWallet),
+          toPubkey: recipientPubkey,
           lamports,
         })
       );
-      
-      const signature = await this.connection.sendTransaction(transaction, [merchantKeypair]);
-      await this.connection.confirmTransaction(signature);
-      */
+
+      // Add memo if original signature exists
+      if (signature) {
+        const memoData = Buffer.from(`WS402 Refund: ${signature.slice(0, 20)}...`, 'utf-8');
+        // Note: For production, you might want to use SPL Memo program
+        // For now, we'll keep it simple
+      }
+
+      this.log('Sending refund transaction...', {
+        from: this.merchantWallet.toBase58(),
+        to: recipientPubkey.toBase58(),
+        lamports,
+      });
+
+      // Send transaction (don't use sendAndConfirmTransaction - it needs WebSocket)
+      const txSignature = await this.connection.sendTransaction(
+        transaction,
+        [this.merchantKeypair],
+        {
+          skipPreflight: false,
+          preflightCommitment: 'confirmed',
+        }
+      );
+
+      this.log('📤 Refund transaction sent', { signature: txSignature });
+
+      // Manually confirm using polling (Alchemy doesn't support WebSocket subscriptions)
+      const startTime = Date.now();
+      const timeout = 30000; // 30 seconds
+      let confirmed = false;
+
+      while (!confirmed && (Date.now() - startTime) < timeout) {
+        try {
+          const status = await this.connection.getSignatureStatus(txSignature);
+          
+          if (status?.value?.confirmationStatus === 'confirmed' || 
+              status?.value?.confirmationStatus === 'finalized') {
+            confirmed = true;
+            break;
+          }
+          
+          if (status?.value?.err) {
+            throw new Error(`Transaction failed: ${JSON.stringify(status.value.err)}`);
+          }
+          
+          // Wait 2 seconds before next check
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        } catch (error: any) {
+          // Continue trying
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      }
+
+      if (!confirmed) {
+        this.log('⚠️  Refund sent but confirmation timeout. Check explorer:', {
+          signature: txSignature,
+          explorer: `https://solscan.io/tx/${txSignature}${this.config.network !== 'mainnet-beta' ? '?cluster=' + this.config.network : ''}`,
+        });
+      } else {
+        this.log('✅ Refund transaction confirmed', {
+          signature: txSignature,
+          amount: lamports,
+          amountSOL: refundSOL.toString(),
+          recipient: senderWallet,
+          explorer: `https://solscan.io/tx/${txSignature}${this.config.network !== 'mainnet-beta' ? '?cluster=' + this.config.network : ''}`,
+        });
+      }
 
     } catch (error: any) {
-      this.log('Refund error', error.message);
-      throw new Error(`Refund failed: ${error.message}`);
+      this.log('❌ Refund error', error.message);
+      
+      // Don't throw error to prevent session cleanup from failing
+      // Log the error but allow the session to end gracefully
+      if (error.message.includes('Insufficient')) {
+        this.log('⚠️  Merchant wallet has insufficient balance for refund');
+      } else if (error.message.includes('Invalid')) {
+        this.log('⚠️  Invalid wallet address for refund');
+      } else {
+        this.log('⚠️  Refund failed, may need manual processing', {
+          error: error.message,
+          stack: error.stack,
+        });
+      }
     }
   }
 
@@ -395,7 +545,19 @@ export class SolanaPaymentProvider implements PaymentProvider {
   private generateReference(): string {
     // Generate a valid Solana public key as reference
     const array = new Uint8Array(32);
-    crypto.getRandomValues(array);
+    
+    // Use webcrypto for Node.js compatibility
+    if (typeof webcrypto !== 'undefined' && webcrypto.getRandomValues) {
+      webcrypto.getRandomValues(array);
+    } else if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+      crypto.getRandomValues(array);
+    } else {
+      // Fallback to random bytes
+      for (let i = 0; i < 32; i++) {
+        array[i] = Math.floor(Math.random() * 256);
+      }
+    }
+    
     return new PublicKey(array).toBase58();
   }
 
@@ -436,6 +598,8 @@ export class SolanaPaymentProvider implements PaymentProvider {
       network: this.config.network,
       merchantWallet: this.merchantWallet.toBase58(),
       splToken: this.config.splToken,
+      autoRefundEnabled: this.config.autoRefund,
+      hasKeypair: this.merchantKeypair !== null,
     };
   }
 }
