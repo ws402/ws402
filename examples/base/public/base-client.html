@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WS402 + Base Blockchain</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #0052FF 0%, #0041CC 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+    
+    .container {
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      max-width: 600px;
+      width: 100%;
+      padding: 40px;
+    }
+    
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 28px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .base-logo {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, #0052FF 0%, #0041CC 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+    }
+    
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+    
+    .section {
+      margin-bottom: 25px;
+      padding: 20px;
+      background: #f8f9fa;
+      border-radius: 10px;
+    }
+    
+    .section h2 {
+      font-size: 18px;
+      margin-bottom: 15px;
+      color: #333;
+    }
+    
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+    
+    .label {
+      color: #666;
+      font-weight: 500;
+    }
+    
+    .value {
+      color: #333;
+      font-weight: 600;
+      word-break: break-all;
+    }
+    
+    .button {
+      width: 100%;
+      padding: 15px;
+      font-size: 16px;
+      font-weight: 600;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-bottom: 10px;
+    }
+    
+    .button-primary {
+      background: linear-gradient(135deg, #0052FF 0%, #0041CC 100%);
+      color: white;
+    }
+    
+    .button-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 20px rgba(0, 82, 255, 0.4);
+    }
+    
+    .button-secondary {
+      background: #6c757d;
+      color: white;
+    }
+    
+    .button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+    
+    .status {
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      font-size: 14px;
+    }
+    
+    .status-pending {
+      background: #fff3cd;
+      color: #856404;
+      border: 1px solid #ffeeba;
+    }
+    
+    .status-success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    
+    .status-error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    
+    .status-info {
+      background: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
+    }
+    
+    .logs {
+      background: #1e1e1e;
+      color: #00ff00;
+      padding: 15px;
+      border-radius: 10px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      max-height: 200px;
+      overflow-y: auto;
+      margin-top: 20px;
+    }
+    
+    .log-entry {
+      margin-bottom: 5px;
+    }
+    
+    .network-badge {
+      display: inline-block;
+      background: #0052FF;
+      color: white;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      margin-left: 10px;
+    }
+    
+    .payment-instructions {
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      margin-top: 15px;
+    }
+    
+    .payment-instructions h3 {
+      font-size: 14px;
+      margin-bottom: 10px;
+      color: #333;
+    }
+    
+    .payment-instructions ol {
+      margin-left: 20px;
+      color: #555;
+      font-size: 13px;
+    }
+    
+    .payment-instructions li {
+      margin-bottom: 8px;
+    }
+    
+    .wallet-address {
+      background: #f0f0f0;
+      padding: 10px;
+      border-radius: 5px;
+      font-family: monospace;
+      font-size: 11px;
+      word-break: break-all;
+      margin: 10px 0;
+    }
+    
+    .copy-btn {
+      padding: 8px 15px;
+      background: #28a745;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 12px;
+      margin-bottom: 10px;
+    }
+    
+    .copy-btn:hover {
+      background: #218838;
+    }
+    
+    .tx-input {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: monospace;
+      margin-top: 10px;
+      transition: border-color 0.3s;
+    }
+    
+    .tx-input:focus {
+      outline: none;
+      border-color: #0052FF;
+    }
+    
+    .metamask-section {
+      background: #f6851b;
+      color: white;
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 15px;
+      text-align: center;
+    }
+    
+    .metamask-section h3 {
+      margin-bottom: 10px;
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>
+      <div class="base-logo">⚡</div>
+      WS402 + Base
+    </h1>
+    <p class="subtitle">Pay-as-you-go WebSocket access with Base blockchain</p>
+    
+    <div id="statusMessage"></div>
+    
+    <div class="section" id="paymentSection">
+      <h2>💳 Payment Details <span class="network-badge" id="networkBadge">Base</span></h2>
+      <div class="info-row">
+        <span class="label">Duration:</span>
+        <span class="value" id="duration">-</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Price per second:</span>
+        <span class="value" id="pricePerSecond">-</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Total (wei):</span>
+        <span class="value" id="totalWei">-</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Total (ETH):</span>
+        <span class="value" id="totalETH">-</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Chain ID:</span>
+        <span class="value" id="chainId">-</span>
+      </div>
+      
+      <button class="button button-primary" id="getSchemaBtn" onclick="getSchema()">
+        Get Payment Schema
+      </button>
+      
+      <div id="paymentInstructions" style="display: none;">
+        <!-- MetaMask Section -->
+        <div class="metamask-section" id="metamaskSection">
+          <button class="button" onclick="payWithMetaMask()" style="background: #f6851b; color: white; margin-bottom: 0;">
+            🦊 Pay with MetaMask
+          </button>
+        </div>
+        
+        <div style="text-align: center; margin: 15px 0; color: #999; font-size: 13px;">
+          — OR —
+        </div>
+        
+        <div class="payment-instructions">
+          <h3>📋 Manual Payment</h3>
+          <ol>
+            <li>Connect your wallet to Base network</li>
+            <li>Send the required amount to merchant wallet:</li>
+          </ol>
+          <div class="wallet-address" id="merchantAddress">-</div>
+          <button class="copy-btn" onclick="copyAddress()">📋 Copy Address</button>
+          <ol start="3">
+            <li>Copy the transaction hash</li>
+            <li>Paste it below and connect</li>
+          </ol>
+        </div>
+        
+        <input 
+          type="text" 
+          class="tx-input" 
+          id="txHashInput" 
+          placeholder="Paste transaction hash here (0x...)"
+        />
+      </div>
+    </div>
+    
+    <div class="section" id="connectionSection" style="display: none;">
+      <h2>🔌 WebSocket Connection</h2>
+      <div class="info-row">
+        <span class="label">Session ID:</span>
+        <span class="value" id="sessionId">-</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Elapsed Time:</span>
+        <span class="value" id="elapsedTime">0s</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Balance:</span>
+        <span class="value" id="balance">-</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Messages:</span>
+        <span class="value" id="messageCount">0</span>
+      </div>
+      
+      <button class="button button-primary" id="connectBtn" onclick="connectWebSocket()" style="display: none;">
+        Connect & Send Payment Proof
+      </button>
+      
+      <button class="button button-secondary" id="disconnectBtn" onclick="disconnect()" style="display: none;">
+        Disconnect
+      </button>
+    </div>
+    
+    <div class="logs" id="logs"></div>
+  </div>
+
+  <script src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js"></script>
+  <script>
+    let ws = null;
+    let schema = null;
+    let userId = 'user_' + Math.random().toString(36).substr(2, 9);
+    let userAddress = null;
+
+    function log(message) {
+      const logs = document.getElementById('logs');
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logs.appendChild(entry);
+      logs.scrollTop = logs.scrollHeight;
+    }
+
+    function showStatus(message, type = 'pending') {
+      const statusDiv = document.getElementById('statusMessage');
+      statusDiv.className = `status status-${type}`;
+      statusDiv.textContent = message;
+      statusDiv.style.display = 'block';
+    }
+
+    async function getSchema() {
+      try {
+        log('Fetching payment schema...');
+        showStatus('⏳ Loading payment details...', 'pending');
+        
+        const response = await fetch('http://localhost:4028/ws402/schema/premium-resource?duration=10');
+        schema = await response.json();
+        
+        log('Schema received');
+        log(`Amount: ${schema.pricing.totalPrice} wei = ${schema.paymentDetails.amountETH} ETH`);
+        
+        // Update UI
+        document.getElementById('duration').textContent = schema.pricing.estimatedDuration + 's';
+        document.getElementById('pricePerSecond').textContent = schema.pricing.pricePerSecond + ' wei';
+        document.getElementById('totalWei').textContent = schema.pricing.totalPrice + ' wei';
+        document.getElementById('totalETH').textContent = schema.paymentDetails.amountETH + ' ETH';
+        document.getElementById('chainId').textContent = schema.paymentDetails.chainId;
+        document.getElementById('networkBadge').textContent = schema.paymentDetails.network.toUpperCase();
+        document.getElementById('merchantAddress').textContent = schema.paymentDetails.recipient;
+        
+        document.getElementById('paymentInstructions').style.display = 'block';
+        document.getElementById('connectBtn').style.display = 'block';
+        document.getElementById('connectionSection').style.display = 'block';
+        
+        showStatus('✅ Payment schema loaded. Make payment and paste transaction hash below.', 'info');
+        
+      } catch (error) {
+        log('Error: ' + error.message);
+        showStatus('❌ Failed to load schema', 'error');
+      }
+    }
+
+    function copyAddress() {
+      const address = document.getElementById('merchantAddress').textContent;
+      navigator.clipboard.writeText(address).then(() => {
+        log('Address copied to clipboard');
+        showStatus('✅ Address copied!', 'success');
+        setTimeout(() => {
+          showStatus('Make payment and paste transaction hash below', 'info');
+        }, 2000);
+      });
+    }
+
+    function connectWebSocket() {
+      if (!schema) {
+        showStatus('❌ Get schema first!', 'error');
+        return;
+      }
+
+      const txHash = document.getElementById('txHashInput').value.trim();
+      if (!txHash || !txHash.startsWith('0x')) {
+        showStatus('❌ Please enter a valid transaction hash', 'error');
+        return;
+      }
+
+      log('Connecting to WebSocket...');
+      showStatus('⏳ Connecting to WebSocket...', 'pending');
+      
+      ws = new WebSocket(`ws://localhost:4028?userId=${userId}&resourceId=premium-resource`);
+      
+      ws.onopen = () => {
+        log('✅ WebSocket connected');
+        showStatus('⏳ Verifying payment on-chain...', 'info');
+        
+        // Send payment proof
+        const paymentProof = {
+          type: 'payment_proof',
+          proof: {
+            txHash: txHash,
+            reference: schema.paymentDetails.reference,
+            senderAddress: userAddress || '0xbda6878a527d58021a5780277dd3752921166220',
+          }
+        };
+        
+        log('Sending payment proof...');
+        ws.send(JSON.stringify(paymentProof));
+        
+        document.getElementById('connectBtn').style.display = 'none';
+        document.getElementById('disconnectBtn').style.display = 'block';
+      };
+      
+      ws.onmessage = (event) => {
+        const message = JSON.parse(event.data);
+        log(`📨 ${message.type}`);
+        
+        if (message.type === 'session_started') {
+          document.getElementById('sessionId').textContent = message.sessionId;
+          showStatus('✅ Connected! Session active', 'success');
+        }
+        
+        if (message.type === 'usage_update') {
+          document.getElementById('elapsedTime').textContent = message.elapsedSeconds + 's';
+          document.getElementById('balance').textContent = message.remainingBalance + ' wei';
+          document.getElementById('messageCount').textContent = message.messageCount;
+        }
+        
+        if (message.type === 'balance_exhausted') {
+          showStatus('⚠️ Balance exhausted', 'error');
+        }
+        
+        if (message.type === 'payment_rejected') {
+          showStatus('❌ Payment rejected: ' + message.reason, 'error');
+        }
+      };
+      
+      ws.onerror = (error) => {
+        log('❌ WebSocket error');
+        showStatus('❌ Connection error', 'error');
+      };
+      
+      ws.onclose = () => {
+        log('🔚 WebSocket closed (refund will be processed automatically)');
+        showStatus('Connection closed - refund issued', 'info');
+        document.getElementById('disconnectBtn').style.display = 'none';
+        document.getElementById('connectBtn').style.display = 'block';
+      };
+    }
+
+    function disconnect() {
+      if (ws) {
+        ws.close();
+        ws = null;
+      }
+    }
+
+    async function payWithMetaMask() {
+      if (!schema) {
+        showStatus('❌ Get schema first!', 'error');
+        return;
+      }
+
+      if (typeof window.ethereum === 'undefined') {
+        showStatus('❌ MetaMask not installed!', 'error');
+        log('MetaMask not found. Please install MetaMask extension.');
+        return;
+      }
+
+      try {
+        log('🦊 Requesting MetaMask connection...');
+        showStatus('⏳ Connecting to MetaMask...', 'pending');
+
+        // Request account access
+        const accounts = await window.ethereum.request({ 
+          method: 'eth_requestAccounts' 
+        });
+        userAddress = accounts[0];
+        log(`Connected: ${userAddress}`);
+
+        // Check if on Base network
+        const chainId = await window.ethereum.request({ 
+          method: 'eth_chainId' 
+        });
+        
+        const baseChainId = '0x2105'; // 8453 in hex (Base mainnet)
+        
+        if (chainId !== baseChainId) {
+          log('⚠️  Wrong network. Switching to Base...');
+          showStatus('⏳ Switching to Base network...', 'pending');
+          
+          try {
+            await window.ethereum.request({
+              method: 'wallet_switchEthereumChain',
+              params: [{ chainId: baseChainId }],
+            });
+          } catch (switchError) {
+            // Chain not added, try to add it
+            if (switchError.code === 4902) {
+              await window.ethereum.request({
+                method: 'wallet_addEthereumChain',
+                params: [{
+                  chainId: baseChainId,
+                  chainName: 'Base',
+                  nativeCurrency: {
+                    name: 'Ethereum',
+                    symbol: 'ETH',
+                    decimals: 18
+                  },
+                  rpcUrls: ['https://mainnet.base.org'],
+                  blockExplorerUrls: ['https://basescan.org']
+                }],
+              });
+            } else {
+              throw switchError;
+            }
+          }
+        }
+
+        log('💸 Sending payment transaction...');
+        showStatus('⏳ Confirm transaction in MetaMask...', 'pending');
+
+        // Send transaction
+        const txHash = await window.ethereum.request({
+          method: 'eth_sendTransaction',
+          params: [{
+            from: userAddress,
+            to: schema.paymentDetails.recipient,
+            value: '0x' + parseInt(schema.pricing.totalPrice).toString(16),
+          }],
+        });
+
+        log(`✅ Transaction sent: ${txHash}`);
+        showStatus('⏳ Waiting for confirmation...', 'pending');
+
+        // Auto-fill transaction hash
+        document.getElementById('txHashInput').value = txHash;
+
+        // Wait a bit for transaction to be mined
+        await new Promise(resolve => setTimeout(resolve, 3000));
+
+        showStatus('✅ Payment sent! Click Connect to start session', 'success');
+        log('Click "Connect & Send Payment Proof" to start session');
+
+      } catch (error) {
+        console.error('MetaMask error:', error);
+        log(`❌ MetaMask error: ${error.message}`);
+        showStatus('❌ Payment failed: ' + error.message, 'error');
+      }
+    }
+
+    // Initialize
+    log('WS402 Base Client ready');
+    log('User ID: ' + userId);
+    
+    // Check MetaMask availability
+    window.addEventListener('load', () => {
+      if (typeof window.ethereum !== 'undefined') {
+        log('🦊 MetaMask detected');
+      } else {
+        log('⚠️  MetaMask not detected - manual payment only');
+        document.getElementById('metamaskSection').style.display = 'none';
+      }
+    });
+  </script>
+</body>
+</html>

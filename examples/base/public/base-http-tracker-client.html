@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WS402 + Base Blockchain</title>
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #0052FF 0%, #0041CC 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+    
+    .container {
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      max-width: 600px;
+      width: 100%;
+      padding: 40px;
+    }
+    
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 28px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .base-logo {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, #0052FF 0%, #0041CC 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      color: white;
+    }
+    
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+    
+    .section {
+      margin-bottom: 25px;
+      padding: 20px;
+      background: #f8f9fa;
+      border-radius: 10px;
+    }
+    
+    .section h2 {
+      font-size: 18px;
+      margin-bottom: 15px;
+      color: #333;
+    }
+    
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+    
+    .label {
+      color: #666;
+      font-weight: 500;
+    }
+    
+    .value {
+      color: #333;
+      font-weight: 600;
+      word-break: break-all;
+    }
+    
+    .button {
+      width: 100%;
+      padding: 15px;
+      font-size: 16px;
+      font-weight: 600;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-bottom: 10px;
+    }
+    
+    .button-primary {
+      background: linear-gradient(135deg, #0052FF 0%, #0041CC 100%);
+      color: white;
+    }
+    
+    .button-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 20px rgba(0, 82, 255, 0.4);
+    }
+    
+    .button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+    
+    .status {
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      text-align: center;
+    }
+    
+    .status-pending {
+      background: #fff3cd;
+      color: #856404;
+      border: 1px solid #ffeeba;
+    }
+    
+    .status-success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    
+    .status-error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    
+    .status-info {
+      background: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
+    }
+    
+    .logs {
+      background: #1e1e1e;
+      color: #00ff00;
+      padding: 15px;
+      border-radius: 10px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      max-height: 200px;
+      overflow-y: auto;
+      margin-top: 20px;
+    }
+    
+    .log-entry {
+      margin-bottom: 5px;
+    }
+    
+    .network-badge {
+      display: inline-block;
+      background: #0052FF;
+      color: white;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      margin-left: 10px;
+    }
+
+    iframe#pdfViewer {
+      width: 100%;
+      height: 700px;
+      border: 3px solid #0052FF;
+      border-radius: 15px;
+      margin-top: 20px;
+      display: none;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+
+    iframe#pdfViewer.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>
+      <div class="base-logo">B</div>
+      WS402 + Base
+    </h1>
+    <p class="subtitle">Pay only for the time you read • Automatic refund when you close the tab</p>
+    
+    <div id="statusMessage" class="status status-info">Ready to connect</div>
+    
+    <div class="section">
+      <h2>Premium Report 2025 <span class="network-badge">Base Sepolia</span></h2>
+      <div class="info-row">
+        <span class="label">Reading time:</span>
+        <span class="value">10 minutes</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Price per second:</span>
+        <span class="value">5 wei</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Total cost:</span>
+        <span class="value">3,000 wei</span>
+      </div>
+      
+      <button class="button button-primary" id="connectWallet">
+        Connect MetaMask
+      </button>
+      
+      <button class="button button-primary" id="payBtn" disabled style="display: none;">
+        PAY & READ PDF
+      </button>
+    </div>
+    
+    <div class="section" id="sessionInfo" style="display: none;">
+      <h2>Session Active</h2>
+      <div class="info-row">
+        <span class="label">Session ID:</span>
+        <span class="value" id="sessionId">-</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Time used:</span>
+        <span class="value" id="elapsedTime">0s</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Wei used:</span>
+        <span class="value" id="consumedWei">0 wei</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Remaining:</span>
+        <span class="value" id="remainingWei">3,000 wei</span>
+      </div>
+    </div>
+
+    <iframe id="pdfViewer"></iframe>
+    
+    <div class="logs" id="logs">
+      <div class="log-entry">WS402 client initialized</div>
+    </div>
+  </div>
+
+  <script>
+    let provider, signer, account = null;
+    let ws = null;
+    let ws402Schema = null;
+
+    const $ = id => document.getElementById(id);
+    const log = (msg) => {
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      $('logs').appendChild(entry);
+      $('logs').scrollTop = $('logs').scrollHeight;
+    };
+
+    const showStatus = (msg, type = 'info') => {
+      const status = $('statusMessage');
+      status.textContent = msg;
+      status.className = `status status-${type}`;
+    };
+
+    async function connectWallet() {
+      if (!window.ethereum) {
+        showStatus('MetaMask not detected', 'error');
+        log('MetaMask not found');
+        return;
+      }
+
+      try {
+        log('Connecting to MetaMask...');
+        showStatus('Connecting wallet...', 'pending');
+
+        provider = new ethers.BrowserProvider(window.ethereum);
+        await provider.send("eth_requestAccounts", []);
+        signer = await provider.getSigner();
+        account = await signer.getAddress();
+
+        log(`Wallet connected: ${account}`);
+        showStatus('Wallet connected!', 'success');
+
+        $('connectWallet').textContent = 'Connected';
+        $('connectWallet').disabled = true;
+        $('payBtn').style.display = 'block';
+        $('payBtn').disabled = false;
+
+      } catch (e) {
+        log('Wallet connection failed: ' + e.message);
+        showStatus('Connection failed', 'error');
+      }
+    }
+
+    async function payAndRead() {
+      if (!account) return showStatus('Connect wallet first', 'error');
+
+      try {
+        log('Fetching payment schema...');
+        showStatus('Loading payment details...', 'pending');
+
+        const res = await fetch("/api/resource/pdf-report-2024/schema");
+        const data = await res.json();
+        ws402Schema = data.ws402Schema;
+
+        const amount = BigInt(ws402Schema.pricing.totalPrice);
+        log(`Paying ${amount} wei to ${ws402Schema.paymentDetails.recipient}`);
+
+        const tx = await signer.sendTransaction({
+          to: ws402Schema.paymentDetails.recipient,
+          value: amount
+        });
+
+        log(`Transaction sent: ${tx.hash}`);
+        showStatus('Transaction sent, waiting for confirmation...', 'pending');
+
+        // Connect WebSocket FIRST
+        const wsUrl = ws402Schema.websocketEndpoint.replace("wss://", "ws://");
+        const fullUrl = wsUrl.replace("&userId=", `&userId=${account}`);
+        log(`WebSocket URL: ${fullUrl}`);
+
+        ws = new WebSocket(fullUrl);
+
+        ws.onopen = async () => {
+          log('WebSocket connected. Waiting 2s before sending proof...');
+          
+          setTimeout(async () => {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({
+                type: "payment_proof",
+                proof: {
+                  txHash: tx.hash,
+                  reference: ws402Schema.paymentDetails.reference,
+                  senderAddress: account,
+                  amount: amount.toString()
+                }
+              }));
+              log('Payment proof sent');
+            }
+          }, 2000);
+        };
+
+        ws.onmessage = (e) => {
+          const msg = JSON.parse(e.data);
+          console.log("WS:", msg);
+          log(`← ${msg.type}`);
+
+          if (msg.type === "session_started") {
+            $('sessionId').textContent = msg.sessionId.slice(0, 16) + '...';
+            $('sessionInfo').style.display = 'block';
+            showStatus('Session active! Loading PDF...', 'success');
+          }
+
+          if (msg.type === "http_access_granted") {
+            log('PDF UNLOCKED!');
+            showStatus('PDF LOADED!', 'success');
+            const iframe = $("pdfViewer");
+            iframe.src = msg.resourceUrl + "&t=" + Date.now();
+            iframe.classList.add("active");
+            iframe.onload = () => log('PDF fully loaded in iframe');
+          }
+
+          if (msg.type === "usage_update") {
+            $('elapsedTime').textContent = msg.elapsedSeconds + 's';
+            $('consumedWei').textContent = msg.consumedAmount + ' wei';
+            $('remainingWei').textContent = msg.remainingBalance + ' wei';
+          }
+        };
+
+        ws.onclose = () => {
+          log('Session closed → Refund sent automatically');
+          showStatus('Session closed - refund processed', 'info');
+          $("pdfViewer").src = "";
+          $("pdfViewer").classList.remove("active");
+          $('sessionInfo').style.display = 'none';
+        };
+
+        // Confirm tx in background
+        await tx.wait();
+        log('Transaction confirmed on-chain');
+
+      } catch (e) {
+        log('Error: ' + e.message);
+        showStatus('Payment failed: ' + e.message, 'error');
+        console.error(e);
+      }
+    }
+
+    // INIT
+    window.onload = () => {
+      $('connectWallet').onclick = connectWallet;
+      $('payBtn').onclick = payAndRead;
+      log('Client ready. Click "Connect MetaMask" to begin.');
+    };
+  </script>
+</body>
+</html>

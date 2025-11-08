@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -368,6 +367,32 @@
       </button>
     </div>
     
+    <!-- Failed Refunds Section -->
+    <div class="section" id="refundsSection" style="display: none; background: #fff3cd; border: 2px solid #ffc107;">
+      <h2>⚠️ Failed Refunds</h2>
+      <p style="font-size: 13px; color: #856404; margin-bottom: 15px;">
+        These refunds failed during automatic processing. You can retry them manually.
+      </p>
+      <div class="info-row">
+        <span class="label">Failed Count:</span>
+        <span class="value" id="failedCount">0</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Total Amount:</span>
+        <span class="value" id="failedTotal">0 ETH</span>
+      </div>
+      
+      <button class="button button-primary" onclick="loadFailedRefunds()" style="margin-top: 10px;">
+        🔄 Refresh Failed Refunds
+      </button>
+      
+      <button class="button" onclick="retryAllRefunds()" style="background: #28a745; color: white;">
+        ♻️ Retry All Refunds
+      </button>
+      
+      <div id="failedRefundsList" style="margin-top: 15px;"></div>
+    </div>
+    
     <div class="logs" id="logs"></div>
   </div>
 
@@ -400,7 +425,7 @@
         log('Fetching payment schema...');
         showStatus('⏳ Loading payment details...', 'pending');
         
-        const response = await fetch('http://localhost:4028/ws402/schema/premium-resource?duration=300');
+        const response = await fetch('http://localhost:4028/ws402/schema/premium-resource?duration=10');
         schema = await response.json();
         
         log('Schema received');
@@ -559,7 +584,7 @@
           proof: {
             txHash: txHash,
             reference: schema.paymentDetails.reference,
-            senderAddress: userAddress || 'MANUAL_PAYMENT',
+            senderAddress: userAddress || '0xbda6878a527d58021a5780277dd3752921166220', // Your actual wallet address
           }
         };
         
@@ -624,9 +649,120 @@
       }
     });
 
+    // ===== FAILED REFUNDS MANAGEMENT =====
+    
+    // Load failed refunds from server
+    async function loadFailedRefunds() {
+      try {
+        log('📥 Loading failed refunds...');
+        const response = await fetch('http://localhost:4028/refunds/failed');
+        const data = await response.json();
+        
+        document.getElementById('failedCount').textContent = data.count;
+        document.getElementById('failedTotal').textContent = data.totalAmountETH + ' ETH (~$' + 
+          (parseFloat(data.totalAmountETH) * 3000).toFixed(2) + ' USD)';
+        
+        if (data.count > 0) {
+          document.getElementById('refundsSection').style.display = 'block';
+          
+          // Display list of failed refunds
+          const listDiv = document.getElementById('failedRefundsList');
+          listDiv.innerHTML = '<h3 style="font-size: 14px; margin-top: 10px; margin-bottom: 10px;">Refund Details:</h3>';
+          
+          data.refunds.forEach(refund => {
+            const refundDiv = document.createElement('div');
+            refundDiv.style.cssText = 'background: white; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #ddd;';
+            refundDiv.innerHTML = `
+              <div style="font-size: 12px;">
+                <strong>Session:</strong> ${refund.sessionId.substring(0, 20)}...<br>
+                <strong>Amount:</strong> ${refund.amountETH} ETH (~$${refund.amountUSD} USD)<br>
+                <strong>Recipient:</strong> ${refund.recipient.substring(0, 10)}...${refund.recipient.substring(refund.recipient.length - 8)}<br>
+                <strong>Error:</strong> ${refund.error}<br>
+                <strong>Attempts:</strong> ${refund.attempts}<br>
+                <button onclick="retryRefund('${refund.sessionId}')" style="margin-top: 8px; padding: 5px 10px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                  🔄 Retry This Refund
+                </button>
+              </div>
+            `;
+            listDiv.appendChild(refundDiv);
+          });
+          
+          log(`⚠️  Found ${data.count} failed refund(s)`);
+        } else {
+          document.getElementById('refundsSection').style.display = 'none';
+          log('✅ No failed refunds');
+        }
+      } catch (error) {
+        log('❌ Error loading failed refunds: ' + error.message);
+      }
+    }
+
+    // Retry a specific refund
+    async function retryRefund(sessionId) {
+      try {
+        log(`🔄 Retrying refund for ${sessionId}...`);
+        showStatus('⏳ Retrying refund...', 'pending');
+        
+        const response = await fetch(`http://localhost:4028/refunds/retry/${sessionId}`, {
+          method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          log('✅ Refund retry successful!');
+          showStatus('✅ Refund processed successfully!', 'success');
+          // Reload failed refunds list
+          setTimeout(loadFailedRefunds, 1000);
+        } else {
+          log(`❌ Refund retry failed: ${data.error}`);
+          showStatus(`❌ Retry failed: ${data.error}`, 'error');
+        }
+      } catch (error) {
+        log('❌ Error retrying refund: ' + error.message);
+        showStatus('❌ Error retrying refund', 'error');
+      }
+    }
+
+    // Retry all failed refunds
+    async function retryAllRefunds() {
+      try {
+        log('🔄 Retrying all failed refunds...');
+        showStatus('⏳ Retrying all refunds...', 'pending');
+        
+        const response = await fetch('http://localhost:4028/refunds/retry-all', {
+          method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        log(`📊 Retry complete: ${data.successful} successful, ${data.failed} failed`);
+        
+        if (data.successful > 0) {
+          showStatus(`✅ ${data.successful} refund(s) processed!`, 'success');
+        }
+        
+        if (data.failed > 0) {
+          showStatus(`⚠️  ${data.failed} refund(s) still failed`, 'error');
+        }
+        
+        // Reload failed refunds list
+        setTimeout(loadFailedRefunds, 1000);
+      } catch (error) {
+        log('❌ Error retrying refunds: ' + error.message);
+        showStatus('❌ Error retrying refunds', 'error');
+      }
+    }
+
     // Initialize
     log('WS402 Base Client ready');
     log('User ID: ' + userId);
+    
+    // Load failed refunds on page load
+    loadFailedRefunds();
+    
+    // Auto-refresh failed refunds every 30 seconds
+    setInterval(loadFailedRefunds, 30000);
   </script>
 </body>
 </html>

@@ -71,6 +71,9 @@ export class BasePaymentProvider implements PaymentProvider {
           this.log(`   Private key: ${this.wallet.address}`);
           this.log(`   Merchant wallet: ${config.merchantWallet}`);
         }
+        
+        // Check wallet balance
+        this.checkWalletBalance();
       } catch (error: any) {
         this.log('❌ Failed to initialize wallet:', error.message);
         throw new Error('Invalid merchant private key');
@@ -100,6 +103,34 @@ export class BasePaymentProvider implements PaymentProvider {
     };
 
     this.pendingPayments = new Map();
+  }
+
+  /**
+   * Check merchant wallet balance
+   */
+  private async checkWalletBalance(): Promise<void> {
+    if (!this.wallet) return;
+    
+    try {
+      const balance = await this.provider.getBalance(this.wallet.address);
+      const balanceETH = ethers.formatEther(balance);
+      
+      this.log('💰 Merchant wallet balance:', {
+        address: this.wallet.address,
+        balance: balanceETH + ' ETH',
+      });
+      
+      // Warn if balance is low
+      const minBalance = ethers.parseEther('0.001'); // 0.001 ETH minimum recommended
+      if (balance < minBalance) {
+        this.log('⚠️  WARNING: Low merchant wallet balance!');
+        this.log(`   Current: ${balanceETH} ETH`);
+        this.log(`   Recommended minimum: 0.001 ETH`);
+        this.log(`   You may not be able to process refunds`);
+      }
+    } catch (error: any) {
+      this.log('⚠️  Could not check wallet balance:', error.message);
+    }
   }
 
   /**
@@ -278,6 +309,14 @@ export class BasePaymentProvider implements PaymentProvider {
         throw new Error('Sender address required for refund');
       }
 
+      // Validate sender address format
+      try {
+        ethers.getAddress(senderAddress); // Throws if invalid
+      } catch (error) {
+        this.log('❌ Invalid sender address format:', senderAddress);
+        throw new Error(`Invalid sender address: ${senderAddress}`);
+      }
+
       this.log('Issuing Base refund', {
         amount,
         recipient: senderAddress,
@@ -294,6 +333,23 @@ export class BasePaymentProvider implements PaymentProvider {
         refundWei,
       });
 
+      // Check minimum refund amount (must cover gas costs)
+      // Gas cost on Base is typically ~21000 * gas price
+      // Minimum recommended: 0.00001 ETH (10000000000000 wei) to cover gas
+      const MIN_REFUND_WEI = BigInt(10000000000000); // 0.00001 ETH
+      
+      if (BigInt(refundWei) < MIN_REFUND_WEI) {
+        this.log('⚠️  Refund amount too small to process on-chain', {
+          refundWei,
+          minRequired: MIN_REFUND_WEI.toString(),
+          reason: 'Amount would be consumed by gas fees',
+        });
+        
+        // Don't throw error, just log and return
+        // In production, you might want to accumulate small refunds
+        return;
+      }
+
       // Check if automatic refunds are enabled and wallet is available
       if (!this.config.autoRefund || !this.wallet) {
         this.log('⚠️  Automatic refunds disabled or no private key - manual refund required', {
@@ -305,6 +361,18 @@ export class BasePaymentProvider implements PaymentProvider {
         return;
       }
 
+      // Check if recipient is a contract (might reject ETH)
+      const code = await this.provider.getCode(senderAddress);
+      if (code !== '0x') {
+        this.log('⚠️  Recipient is a smart contract - may not accept ETH transfers', {
+          address: senderAddress,
+          codeLength: code.length,
+        });
+        
+        // For now, we'll try anyway but log the warning
+        // In production, you might want to use a different refund method
+      }
+
       // Execute automatic refund
       this.log('💸 Sending refund transaction...');
 
@@ -312,11 +380,69 @@ export class BasePaymentProvider implements PaymentProvider {
         // Get current gas price
         const feeData = await this.provider.getFeeData();
         
+        // Estimate gas cost
+        const gasLimit = 21000n;
+        const maxGasCost = gasLimit * (feeData.maxFeePerGas || BigInt(0));
+        
+        // Verify refund amount covers gas
+        if (BigInt(refundWei) <= maxGasCost) {
+          this.log('⚠️  Refund amount would be consumed by gas fees', {
+            refundWei,
+            estimatedGasCost: maxGasCost.toString(),
+          });
+          return;
+        }
+
+        // Check wallet balance
+        const balance = await this.provider.getBalance(this.wallet.address);
+        const totalNeeded = BigInt(refundWei) + maxGasCost;
+        
+        this.log('💰 Wallet check:', {
+          merchantBalance: ethers.formatEther(balance) + ' ETH',
+          refundAmount: ethers.formatEther(refundWei) + ' ETH',
+          estimatedGas: ethers.formatEther(maxGasCost) + ' ETH',
+          totalNeeded: ethers.formatEther(totalNeeded) + ' ETH',
+          canProcess: balance >= totalNeeded,
+        });
+        
+        if (balance < totalNeeded) {
+          this.log('❌ Insufficient balance in merchant wallet', {
+            balance: ethers.formatEther(balance),
+            needed: ethers.formatEther(totalNeeded),
+            refund: ethers.formatEther(refundWei),
+            gas: ethers.formatEther(maxGasCost),
+          });
+          throw new Error('Insufficient funds in merchant wallet for refund + gas');
+        }
+
+        // Try to estimate gas first to catch issues early
+        try {
+          this.log('🔍 Estimating gas for refund transaction...');
+          const gasEstimate = await this.wallet.estimateGas({
+            to: senderAddress,
+            value: BigInt(refundWei),
+          });
+          this.log('✅ Gas estimation successful:', gasEstimate.toString());
+        } catch (estimateError: any) {
+          this.log('❌ Gas estimation failed:', estimateError.message);
+          this.log('⚠️  This transaction will likely fail');
+          
+          // Try to get more details about why it would fail
+          if (estimateError.message.includes('insufficient funds')) {
+            throw new Error('Insufficient funds for transaction');
+          } else if (estimateError.message.includes('execution reverted')) {
+            throw new Error('Transaction would revert - recipient may not accept ETH');
+          }
+          
+          // Continue anyway to get actual error
+          this.log('⚠️  Attempting transaction anyway for debugging...');
+        }
+        
         // Prepare transaction
         const tx = await this.wallet.sendTransaction({
           to: senderAddress,
-          value: ethers.parseEther(refundETH),
-          gasLimit: 21000, // Standard ETH transfer
+          value: BigInt(refundWei),
+          gasLimit: gasLimit,
           maxFeePerGas: feeData.maxFeePerGas,
           maxPriorityFeePerGas: feeData.maxPriorityFeePerGas,
         });
@@ -325,6 +451,7 @@ export class BasePaymentProvider implements PaymentProvider {
           txHash: tx.hash,
           to: senderAddress,
           amount: refundETH + ' ETH',
+          nonce: tx.nonce,
         });
 
         // Wait for confirmation
@@ -335,6 +462,7 @@ export class BasePaymentProvider implements PaymentProvider {
             txHash: receipt.hash,
             blockNumber: receipt.blockNumber,
             gasUsed: receipt.gasUsed.toString(),
+            effectiveCost: ethers.formatEther(receipt.gasUsed * receipt.gasPrice),
           });
         } else {
           throw new Error('Refund transaction failed');
@@ -348,6 +476,18 @@ export class BasePaymentProvider implements PaymentProvider {
           throw new Error('Insufficient funds in merchant wallet for refund');
         } else if (txError.code === 'NONCE_EXPIRED') {
           throw new Error('Transaction nonce expired - please retry');
+        } else if (txError.code === 'CALL_EXCEPTION') {
+          this.log('⚠️  Transaction reverted - likely due to recipient being a contract or having a receive() restriction');
+          
+          // Log detailed info for debugging
+          this.log('💡 Possible solutions:', {
+            solution1: 'Recipient might be a smart contract wallet',
+            solution2: 'Recipient might not have a receive() or fallback() function',
+            solution3: 'Consider implementing off-chain refund tracking',
+            recipientAddress: senderAddress,
+          });
+          
+          throw new Error('Refund transaction reverted - recipient cannot receive ETH (might be a contract)');
         } else {
           throw new Error(`Refund transaction failed: ${txError.message}`);
         }

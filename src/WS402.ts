@@ -41,15 +41,26 @@ export class WS402 extends EventEmitter {
   /**
    * Attach WS402 to a WebSocket server
    */
-  attach(wss: WebSocket.Server): void {
+  attach(wss: WebSocket.Server): Map<string, WebSocket> {
+    const userIdToWs = new Map<string, WebSocket>();
+  
     wss.on('connection', async (ws: WebSocket, req: any) => {
       try {
+        const userId = this.config.userIdExtractor(req);
+        
+        userIdToWs.set(userId, ws);
+  
+        ws.on('close', () => {
+          userIdToWs.delete(userId);
+        });
+  
         await this.handleConnection(ws, req);
       } catch (error) {
         this.emit('error', error);
         ws.close(1011, 'Internal server error');
       }
     });
+      return userIdToWs;
   }
 
   /**
@@ -60,7 +71,7 @@ export class WS402 extends EventEmitter {
     
     return {
       protocol: 'ws402',
-      version: '0.1.0',
+      version: '0.1.2',
       resourceId,
       websocketEndpoint: `wss://your-server.com/ws402/${resourceId}`,
       pricing: {
