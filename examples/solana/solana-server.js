@@ -188,51 +188,6 @@ app.get('/ws402/schema/:resourceId', (req, res) => {
   }
 });
 
-// Status endpoint
-app.get('/status', (req, res) => {
-  const sessions = ws402.getActiveSessions();
-  const connectionInfo = solanaProvider.getConnectionInfo();
-  
-  res.json({
-    provider: 'Solana',
-    network: connectionInfo.network,
-    rpcEndpoint: connectionInfo.rpcEndpoint,
-    merchantWallet: connectionInfo.merchantWallet,
-    splToken: connectionInfo.splToken || 'Native SOL',
-    autoRefundEnabled: connectionInfo.autoRefundEnabled,
-    hasKeypair: connectionInfo.hasKeypair,
-    activeSessions: sessions.length,
-    pricePerSecond: ws402.config.pricePerSecond + ' lamports',
-    pricePerSecondSOL: formatSOL(ws402.config.pricePerSecond),
-    sessions: sessions.map(s => ({
-      sessionId: s.sessionId,
-      userId: s.userId,
-      elapsedSeconds: s.elapsedSeconds,
-      paidAmount: formatSOL(s.paidAmount),
-      consumedAmount: formatSOL(s.consumedAmount),
-      remainingBalance: formatSOL(s.paidAmount - s.consumedAmount),
-    })),
-  });
-});
-
-// Health check endpoint
-app.get('/health', async (req, res) => {
-  try {
-    const connectionInfo = solanaProvider.getConnectionInfo();
-    res.json({
-      status: 'healthy',
-      provider: 'Solana',
-      network: connectionInfo.network,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    res.status(503).json({
-      status: 'unhealthy',
-      error: error.message,
-    });
-  }
-});
-
 // Blockhash endpoint - provides recent blockhash for transactions
 app.get('/blockhash', async (req, res) => {
   try {
