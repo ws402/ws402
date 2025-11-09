@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WS402 + Solana Multi-Resource</title>
+  <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #14F195 0%, #9945FF 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+    
+    .container {
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      max-width: 700px;
+      width: 100%;
+      padding: 40px;
+    }
+    
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 28px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .solana-logo {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, #14F195 0%, #9945FF 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      color: white;
+      font-weight: bold;
+    }
+    
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+    
+    .section {
+      margin-bottom: 25px;
+      padding: 20px;
+      background: #f8f9fa;
+      border-radius: 10px;
+    }
+    
+    .section h2 {
+      font-size: 18px;
+      margin-bottom: 15px;
+      color: #333;
+    }
+
+    .resource-selector {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .resource-card {
+      background: white;
+      border: 2px solid #e0e0e0;
+      border-radius: 10px;
+      padding: 15px;
+      cursor: pointer;
+      transition: all 0.3s;
+      position: relative;
+    }
+
+    .resource-card:hover {
+      border-color: #9945FF;
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(153, 69, 255, 0.2);
+    }
+
+    .resource-card.selected {
+      border-color: #9945FF;
+      background: linear-gradient(135deg, rgba(20, 241, 149, 0.1) 0%, rgba(153, 69, 255, 0.1) 100%);
+    }
+
+    .resource-card.selected::before {
+      content: '✓';
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 24px;
+      height: 24px;
+      background: linear-gradient(135deg, #14F195 0%, #9945FF 100%);
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    .resource-name {
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 8px;
+      font-size: 16px;
+    }
+
+    .resource-details {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 5px;
+    }
+
+    .resource-price {
+      font-weight: 700;
+      background: linear-gradient(135deg, #14F195 0%, #9945FF 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      font-size: 18px;
+      margin-top: 8px;
+    }
+
+    .resource-type-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      margin-left: 8px;
+    }
+
+    .badge-pdf {
+      background: #ffebee;
+      color: #c62828;
+    }
+
+    .badge-video {
+      background: #e3f2fd;
+      color: #1565c0;
+    }
+    
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+    
+    .label {
+      color: #666;
+      font-weight: 500;
+    }
+    
+    .value {
+      color: #333;
+      font-weight: 600;
+      word-break: break-all;
+    }
+    
+    .button {
+      width: 100%;
+      padding: 15px;
+      font-size: 16px;
+      font-weight: 600;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-bottom: 10px;
+    }
+    
+    .button-primary {
+      background: linear-gradient(135deg, #14F195 0%, #9945FF 100%);
+      color: white;
+    }
+    
+    .button-primary:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 20px rgba(153, 69, 255, 0.4);
+    }
+    
+    .button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+    
+    .status {
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      text-align: center;
+    }
+    
+    .status-pending {
+      background: #fff3cd;
+      color: #856404;
+      border: 1px solid #ffeeba;
+    }
+    
+    .status-success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    
+    .status-error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    
+    .status-info {
+      background: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
+    }
+    
+    .logs {
+      background: #1e1e1e;
+      color: #14F195;
+      padding: 15px;
+      border-radius: 10px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      max-height: 200px;
+      overflow-y: auto;
+      margin-top: 20px;
+    }
+    
+    .log-entry {
+      margin-bottom: 5px;
+    }
+    
+    .network-badge {
+      display: inline-block;
+      background: linear-gradient(135deg, #14F195 0%, #9945FF 100%);
+      color: white;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      margin-left: 10px;
+      font-weight: 600;
+    }
+
+    iframe#resourceViewer {
+      width: 100%;
+      height: 700px;
+      border: 3px solid #9945FF;
+      border-radius: 15px;
+      margin-top: 20px;
+      display: none;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+
+    iframe#resourceViewer.active {
+      display: block;
+    }
+
+    .price-highlight {
+      background: linear-gradient(135deg, #14F195 0%, #9945FF 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      font-weight: 700;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 20px;
+      color: #666;
+    }
+
+    .spinner {
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #9945FF;
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 10px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>
+      <div class="solana-logo">◎</div>
+      WS402 + Solana
+    </h1>
+    <p class="subtitle">Pay only for actual usage • Ultra-low fees • Automatic refund</p>
+    
+    <div id="statusMessage" class="status status-info">Ready to connect</div>
+    
+    <!-- Resource Selection -->
+    <div class="section">
+      <h2>📦 Select Resource <span class="network-badge" id="networkBadge">DEVNET</span></h2>
+      <div id="resourceList" class="resource-selector">
+        <div class="loading">
+          <div class="spinner"></div>
+          Loading resources...
+        </div>
+      </div>
+    </div>
+
+    <!-- Selected Resource Details -->
+    <div class="section" id="resourceDetails" style="display: none;">
+      <h2>💰 Payment Details</h2>
+      <div class="info-row">
+        <span class="label">Resource:</span>
+        <span class="value" id="detailName">-</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Duration:</span>
+        <span class="value" id="detailDuration">-</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Price per second:</span>
+        <span class="value" id="detailPricePerSec">-</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Total cost:</span>
+        <span class="value price-highlight" id="detailTotalCost">-</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Transaction fee:</span>
+        <span class="value">~$0.0001</span>
+      </div>
+      
+      <button class="button button-primary" id="connectWallet">
+        🦊 Connect Phantom
+      </button>
+      
+      <button class="button button-primary" id="payBtn" disabled style="display: none;">
+        💰 PAY & ACCESS RESOURCE
+      </button>
+    </div>
+    
+    <div class="section" id="sessionInfo" style="display: none;">
+      <h2>📊 Active Session</h2>
+      <div class="info-row">
+        <span class="label">Session ID:</span>
+        <span class="value" id="sessionId">-</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Time used:</span>
+        <span class="value" id="elapsedTime">0s</span>
+      </div>
+      <div class="info-row">
+        <span class="label">SOL consumed:</span>
+        <span class="value" id="consumedSOL">0 SOL</span>
+      </div>
+      <div class="info-row">
+        <span class="label">SOL remaining:</span>
+        <span class="value price-highlight" id="remainingSOL">-</span>
+      </div>
+    </div>
+
+    <iframe id="resourceViewer"></iframe>
+    
+    <div class="logs" id="logs">
+      <div class="log-entry">🚀 WS402 Multi-Resource Client initialized</div>
+    </div>
+  </div>
+
+  <script>
+    let walletConnected = false;
+    let walletPublicKey = null;
+    let ws = null;
+    let ws402Schema = null;
+    let availableResources = [];
+    let selectedResourceId = null;
+
+    const $ = id => document.getElementById(id);
+    
+    const log = (msg) => {
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      $('logs').appendChild(entry);
+      $('logs').scrollTop = $('logs').scrollHeight;
+    };
+
+    const showStatus = (msg, type = 'info') => {
+      const status = $('statusMessage');
+      status.textContent = msg;
+      status.className = `status status-${type}`;
+    };
+
+    // Format SOL amount
+    const formatSOL = (lamports) => {
+      return (lamports / 1e9).toFixed(9) + ' SOL';
+    };
+
+    // Format SOL with smart decimals for display
+    const formatSOLDisplay = (lamports) => {
+      const sol = lamports / 1e9;
+      if (sol < 0.001) return sol.toFixed(9) + ' SOL';
+      if (sol < 1) return sol.toFixed(6) + ' SOL';
+      return sol.toFixed(4) + ' SOL';
+    };
+
+    // Format time
+    const formatTime = (seconds) => {
+      if (seconds < 60) return seconds + 's';
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+    };
+
+    // Load available resources
+    async function loadResources() {
+      try {
+        log('📡 Fetching available resources...');
+        const res = await fetch('/api/resources');
+        const data = await res.json();
+        availableResources = data.resources;
+        
+        log(`✅ Loaded ${availableResources.length} resources`);
+        renderResources();
+      } catch (e) {
+        log('❌ Failed to load resources: ' + e.message);
+        showStatus('Failed to load resources', 'error');
+      }
+    }
+
+    // Render resource cards
+    function renderResources() {
+      const container = $('resourceList');
+      container.innerHTML = '';
+
+      availableResources.forEach(resource => {
+        const card = document.createElement('div');
+        card.className = 'resource-card';
+        card.onclick = () => selectResource(resource.id);
+
+        const typeBadge = resource.type === 'pdf' ? 'badge-pdf' : 'badge-video';
+        const pricePerSecSOL = formatSOLDisplay(resource.pricePerSecond);
+        
+        card.innerHTML = `
+          <div class="resource-name">
+            ${resource.name}
+            <span class="resource-type-badge ${typeBadge}">${resource.type}</span>
+          </div>
+          <div class="resource-details">
+            <span>Duration: ${formatTime(resource.estimatedTime)}</span>
+            <span>${pricePerSecSOL}/sec</span>
+          </div>
+          <div class="resource-price">${resource.priceInSOL} SOL total</div>
+        `;
+
+        container.appendChild(card);
+      });
+    }
+
+    // Select a resource
+    function selectResource(resourceId) {
+      selectedResourceId = resourceId;
+      
+      // Update UI
+      document.querySelectorAll('.resource-card').forEach((card, idx) => {
+        card.classList.remove('selected');
+        if (availableResources[idx].id === resourceId) {
+          card.classList.add('selected');
+        }
+      });
+
+      const resource = availableResources.find(r => r.id === resourceId);
+      
+      log(`📦 Selected: ${resource.name}`);
+      log(`💰 Price: ${formatSOLDisplay(resource.pricePerSecond)}/sec`);
+      log(`📊 Total: ${resource.priceInSOL} SOL for ${formatTime(resource.estimatedTime)}`);
+      
+      // Update details panel
+      $('detailName').textContent = resource.name;
+      $('detailDuration').textContent = formatTime(resource.estimatedTime);
+      $('detailPricePerSec').textContent = formatSOLDisplay(resource.pricePerSecond) + '/sec';
+      $('detailTotalCost').textContent = resource.priceInSOL + ' SOL';
+      
+      $('resourceDetails').style.display = 'block';
+      
+      showStatus('Resource selected. Connect wallet to proceed.', 'success');
+    }
+
+    // Check for Phantom
+    function checkPhantom() {
+      if ('solana' in window) {
+        const provider = window.solana;
+        if (provider.isPhantom) {
+          log('👻 Phantom wallet detected');
+          return true;
+        }
+      }
+      log('❌ Phantom wallet not found');
+      showStatus('Please install Phantom wallet', 'error');
+      window.open('https://phantom.app/', '_blank');
+      return false;
+    }
+
+    async function connectWallet() {
+      if (!checkPhantom()) return;
+
+      try {
+        log('🔄 Connecting to Phantom...');
+        showStatus('Connecting wallet...', 'pending');
+
+        const resp = await window.solana.connect();
+        walletPublicKey = resp.publicKey.toString();
+        walletConnected = true;
+
+        log(`✅ Wallet connected: ${walletPublicKey.slice(0, 8)}...`);
+        showStatus('Wallet connected! Ready to pay.', 'success');
+
+        $('connectWallet').textContent = '✅ Connected';
+        $('connectWallet').disabled = true;
+        $('payBtn').style.display = 'block';
+        $('payBtn').disabled = false;
+
+      } catch (e) {
+        log('❌ Wallet connection failed: ' + e.message);
+        showStatus('Connection failed', 'error');
+      }
+    }
+
+    async function payAndAccess() {
+      if (!walletConnected) {
+        showStatus('Connect wallet first', 'error');
+        return;
+      }
+
+      if (!selectedResourceId) {
+        showStatus('Select a resource first', 'error');
+        return;
+      }
+
+      try {
+        log(`📡 Fetching payment schema for ${selectedResourceId}...`);
+        showStatus('Loading payment details...', 'pending');
+
+        const res = await fetch(`/api/resource/${selectedResourceId}/schema`);
+        const data = await res.json();
+        ws402Schema = data.ws402Schema;
+
+        const resource = availableResources.find(r => r.id === selectedResourceId);
+        
+        log(`💰 Amount: ${formatSOL(ws402Schema.pricing.totalPrice)}`);
+        log(`📍 To: ${ws402Schema.paymentDetails.recipient.slice(0, 8)}...`);
+        log(`💎 Price/sec: ${ws402Schema.pricing.pricePerSecond} lamports`);
+
+        // Update network badge
+        const network = ws402Schema.paymentDetails.network || 'devnet';
+        $('networkBadge').textContent = network.toUpperCase();
+
+        // Get blockhash from server
+        log('📡 Getting blockhash from server...');
+        const blockhashRes = await fetch('/blockhash');
+        const { blockhash, lastValidBlockHeight } = await blockhashRes.json();
+        log('✅ Blockhash received');
+
+        // Create transaction
+        log('🔄 Creating transaction...');
+        const transaction = new window.solanaWeb3.Transaction();
+        transaction.recentBlockhash = blockhash;
+        transaction.lastValidBlockHeight = lastValidBlockHeight;
+        transaction.feePayer = window.solana.publicKey;
+
+        const recipient = new window.solanaWeb3.PublicKey(ws402Schema.paymentDetails.recipient);
+        const reference = new window.solanaWeb3.PublicKey(ws402Schema.paymentDetails.reference);
+        const amount = parseInt(ws402Schema.paymentDetails.amount);
+
+        // Add transfer instruction
+        const transferIx = window.solanaWeb3.SystemProgram.transfer({
+          fromPubkey: window.solana.publicKey,
+          toPubkey: recipient,
+          lamports: amount,
+        });
+
+        // Add reference as readonly key
+        transferIx.keys.push({
+          pubkey: reference,
+          isSigner: false,
+          isWritable: false,
+        });
+
+        transaction.add(transferIx);
+
+        log('📝 Requesting approval from Phantom...');
+        showStatus('Approve transaction in Phantom...', 'pending');
+
+        // Sign and send via Phantom
+        const { signature } = await window.solana.signAndSendTransaction(transaction);
+
+        log(`✅ Transaction sent: ${signature.slice(0, 8)}...`);
+        showStatus('Transaction confirmed! Connecting...', 'success');
+
+        // Connect WebSocket
+        const wsUrl = ws402Schema.websocketEndpoint.replace('wss://', 'ws://');
+        const fullUrl = wsUrl + walletPublicKey;
+        log(`🔌 Connecting to WebSocket...`);
+
+        ws = new WebSocket(fullUrl);
+
+        ws.onopen = () => {
+          log('🔌 WebSocket connected');
+          
+          setTimeout(() => {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({
+                type: 'payment_proof',
+                proof: {
+                  signature: signature,
+                  reference: ws402Schema.paymentDetails.reference,
+                  senderWallet: walletPublicKey,
+                }
+              }));
+              log('📨 Payment proof sent');
+            }
+          }, 2000);
+        };
+
+        ws.onmessage = (e) => {
+          const msg = JSON.parse(e.data);
+          console.log('WS:', msg);
+          log(`← ${msg.type}`);
+
+          if (msg.type === 'session_started') {
+            $('sessionId').textContent = msg.sessionId.slice(0, 16) + '...';
+            $('sessionInfo').style.display = 'block';
+            $('remainingSOL').textContent = formatSOL(msg.balance);
+            showStatus('✅ Session active! Loading resource...', 'success');
+          }
+
+          if (msg.type === 'http_access_granted') {
+            log(`🎉 ${msg.resourceInfo.type.toUpperCase()} UNLOCKED!`);
+            showStatus(`✅ ${msg.resourceInfo.name} LOADED!`, 'success');
+            
+            const iframe = $('resourceViewer');
+            iframe.src = msg.resourceUrl + '&t=' + Date.now();
+            iframe.classList.add('active');
+            iframe.onload = () => log(`📄 ${msg.resourceInfo.type.toUpperCase()} fully loaded`);
+          }
+
+          if (msg.type === 'usage_update') {
+            $('elapsedTime').textContent = msg.elapsedSeconds + 's';
+            $('consumedSOL').textContent = formatSOL(msg.consumedAmount);
+            $('remainingSOL').textContent = formatSOL(msg.remainingBalance);
+          }
+
+          if (msg.type === 'balance_exhausted') {
+            showStatus('⚠️ Balance exhausted', 'error');
+            log('💸 Balance exhausted - session ending');
+          }
+        };
+
+        ws.onclose = () => {
+          log('🔌 Session closed → Refund sent automatically');
+          showStatus('Session closed - refund processed 💰', 'info');
+          $('resourceViewer').src = '';
+          $('resourceViewer').classList.remove('active');
+          $('sessionInfo').style.display = 'none';
+        };
+
+        ws.onerror = (err) => {
+          log('❌ WebSocket error');
+          console.error('WS error:', err);
+        };
+
+      } catch (e) {
+        log('❌ Error: ' + e.message);
+        showStatus('Payment failed: ' + e.message, 'error');
+        console.error(e);
+      }
+    }
+
+    // INIT
+    window.onload = async () => {
+      if (checkPhantom()) {
+        await loadResources();
+        $('connectWallet').onclick = connectWallet;
+        $('payBtn').onclick = payAndAccess;
+        log('✅ Client ready. Select a resource to begin.');
+        showStatus('Select a resource to get started', 'info');
+      }
+    };
+
+    // Auto-connect if already authorized
+    window.addEventListener('load', async () => {
+      if (window.solana && window.solana.isPhantom && window.solana.isConnected) {
+        try {
+          const resp = await window.solana.connect({ onlyIfTrusted: true });
+          walletPublicKey = resp.publicKey.toString();
+          walletConnected = true;
+          log(`✅ Auto-connected: ${walletPublicKey.slice(0, 8)}...`);
+          
+          if ($('connectWallet')) {
+            $('connectWallet').textContent = '✅ Connected';
+            $('connectWallet').disabled = true;
+            $('payBtn').style.display = 'block';
+            $('payBtn').disabled = false;
+          }
+        } catch (e) {
+          // User not previously connected
+        }
+      }
+    });
+  </script>
+</body>
+</html>

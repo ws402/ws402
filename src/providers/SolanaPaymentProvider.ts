@@ -92,7 +92,7 @@ export class SolanaPaymentProvider implements PaymentProvider {
       rpcEndpoint: config.rpcEndpoint,
       merchantWallet: config.merchantWallet,
       network: config.network || 'mainnet-beta',
-      conversionRate: config.conversionRate || 1, // 1:1 by default (wei to lamports)
+      conversionRate: config.conversionRate || 1, // 1:1 by default
       paymentTimeout: config.paymentTimeout || 300000, // 5 minutes
       label: config.label || 'WS402 Payment',
       message: config.message || 'Pay for WebSocket resource access',

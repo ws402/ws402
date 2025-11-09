@@ -7,7 +7,7 @@ export interface WS402Config {
   /** Interval in ms to send usage updates to client */
   updateInterval?: number;
   
-  /** Price per second of resource usage */
+  /** Price per second of resource usage (default fallback) */
   pricePerSecond?: number;
   
   /** Currency unit (e.g., 'wei', 'sat', 'usd') */
@@ -43,6 +43,12 @@ export interface WS402Session {
   messageCount: number;
   status: 'active' | 'ended';
   paymentProof: any;
+  
+  /** Session-specific price per second (can differ from global config) */
+  pricePerSecond: number;
+  
+  /** Optional: Resource ID associated with this session */
+  _resourceId?: string;
 }
 
 /**
@@ -61,6 +67,13 @@ export interface WS402Schema {
   };
   paymentDetails: any;
   maxSessionDuration: number;
+  
+  /** Optional: Additional resource information */
+  resourceInfo?: {
+    name?: string;
+    type?: string;
+    estimatedTime?: number;
+  };
 }
 
 /**
@@ -114,6 +127,9 @@ export interface PaymentVerification {
   valid: boolean;
   amount: number;
   reason?: string;
+  
+  /** Optional: Resource-specific price if payment verification includes it */
+  pricePerSecond?: number;
 }
 
 /**
@@ -122,5 +138,6 @@ export interface PaymentVerification {
 export interface WS402MiddlewareOptions {
   resourceIdExtractor?: (req: any) => string;
   estimatedDurationExtractor?: (req: any) => number;
+  pricePerSecondExtractor?: (req: any) => number;
   schemaEndpoint?: string;
 }

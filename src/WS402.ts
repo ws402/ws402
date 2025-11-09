@@ -65,9 +65,11 @@ export class WS402 extends EventEmitter {
 
   /**
    * Generate WS402 schema for initial HTTP response
+   * @param pricePerSecond - Optional custom price per second, uses config default if not provided
    */
-  generateSchema(resourceId: string, estimatedDuration: number): WS402Schema {
-    const totalPrice = this.config.pricePerSecond * estimatedDuration;
+  generateSchema(resourceId: string, estimatedDuration: number, pricePerSecond?: number): WS402Schema {
+    const price = pricePerSecond ?? this.config.pricePerSecond;
+    const totalPrice = price * estimatedDuration;
     
     return {
       protocol: 'ws402',
@@ -75,7 +77,7 @@ export class WS402 extends EventEmitter {
       resourceId,
       websocketEndpoint: `wss://your-server.com/ws402/${resourceId}`,
       pricing: {
-        pricePerSecond: this.config.pricePerSecond,
+        pricePerSecond: price,
         currency: this.config.currency,
         estimatedDuration,
         totalPrice,
@@ -106,7 +108,7 @@ export class WS402 extends EventEmitter {
       return;
     }
 
-    // Create session
+    // Create session with custom price if provided
     const session: WS402Session = {
       userId,
       sessionId: this.generateSessionId(),
@@ -118,6 +120,8 @@ export class WS402 extends EventEmitter {
       messageCount: 0,
       status: 'active',
       paymentProof,
+      pricePerSecond: this.config.pricePerSecond,
+      _resourceId: req._resourceId, // Pass resourceId from request to session
     };
 
     this.sessions.set(ws, session);
@@ -128,7 +132,7 @@ export class WS402 extends EventEmitter {
       type: 'session_started',
       sessionId: session.sessionId,
       balance: session.paidAmount,
-      pricePerSecond: this.config.pricePerSecond,
+      pricePerSecond: session.pricePerSecond,
     }));
 
     // Start usage tracking
@@ -190,7 +194,9 @@ export class WS402 extends EventEmitter {
 
     const now = Date.now();
     session.elapsedSeconds = Math.floor((now - session.startTime) / 1000);
-    session.consumedAmount = session.elapsedSeconds * this.config.pricePerSecond;
+    
+    // Use session-specific price instead of global config
+    session.consumedAmount = session.elapsedSeconds * session.pricePerSecond;
 
     const remaining = session.paidAmount - session.consumedAmount;
 
