@@ -740,7 +740,7 @@
 
     // Connect WebSocket
     function connectWebSocket(schema) {
-      const wsUrl = `ws://localhost:4028`;
+      const wsUrl = `wss://demo-solana-ws`;
       ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {

@@ -5,7 +5,7 @@ const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
 const path = require('path');
-const { WS402, SolanaPaymentProvider } = require('../../dist/index');
+const { WS402, SolanaPaymentProvider } = require('ws402');
 const { LAMPORTS_PER_SOL } = require('@solana/web3.js');
 
 // Load environment variables
