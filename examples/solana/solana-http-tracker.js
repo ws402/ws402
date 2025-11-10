@@ -4,7 +4,7 @@ const http = require('http');
 const WebSocket = require('ws');
 const fs = require('fs');
 const path = require('path');
-const { WS402, SolanaPaymentProvider } = require('../../dist/index');
+const { WS402, SolanaPaymentProvider } = require('ws402');
 const { Connection } = require('@solana/web3.js');
 
 const app = express();
@@ -110,7 +110,7 @@ const ws402 = new WS402(
           type: 'http_access_granted',
           sessionId: session.sessionId,
           httpToken,
-          resourceUrl: `http://localhost:4030/api/resource/${resourceId}?token=${httpToken}`,
+          resourceUrl: `https://demo-solana-http.ws402.org/api/resource/${resourceId}?token=${httpToken}`,
           resourceInfo: {
             name: resource.filename,
             type: resource.type,
@@ -181,7 +181,7 @@ app.get('/api/resource/:resourceId/schema', (req, res) => {
     resource.pricePerSecond
   );
   
-  schema.websocketEndpoint = `ws://localhost:4030/ws402?resourceId=${resourceId}&userId=`;
+  schema.websocketEndpoint = `wss://demo-solana-http.ws402.org/ws402?resourceId=${resourceId}&userId=`;
   schema.resourceInfo = {
     name: resource.filename,
     type: resource.type,
@@ -211,7 +211,7 @@ app.get('/api/resource/:resourceId', (req, res) => {
 
   res.header('Content-Type', resource.contentType);
   res.header('X-Frame-Options', 'ALLOWALL');
-  res.header('Content-Security-Policy', "frame-ancestors 'self' http://localhost:4030");
+  res.header('Content-Security-Policy', "frame-ancestors 'self' https://demo-solana-http.ws402.org");
   res.header('Content-Disposition', `inline; filename="${resource.filename}"`);
 
   const filePath = path.resolve(resource.path);
