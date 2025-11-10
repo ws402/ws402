@@ -622,7 +622,7 @@
         showStatus('Transaction confirmed! Connecting...', 'success');
 
         // Connect WebSocket
-        const wsUrl = ws402Schema.websocketEndpoint.replace('wss://', 'ws://');
+        const wsUrl = ws402Schema.websocketEndpoint;
         const fullUrl = wsUrl + walletPublicKey;
         log(`🔌 Connecting to WebSocket...`);
 
