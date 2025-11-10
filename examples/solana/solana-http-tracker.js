@@ -280,7 +280,7 @@ app.get('/health', (req, res) => {
 // =============================
 // START SERVER
 // =============================
-const PORT = process.env.PORT || 4030;
+const PORT = process.env.PORT || 4029;
 server.listen(PORT, () => {
   console.log('========================================');
   console.log('🚀 WS402 + Solana Multi-Resource Server');
