@@ -184,13 +184,11 @@ The Solana Payment Provider enables ultra-fast, low-cost payments on the Solana 
 
 **WebSocket Real-Time Streaming**
 ![Solana WebSocket Demo](solana-ws.gif)
-Connect to WebSocket, pay with Solana...
 
 ---
 
 **HTTP Resource Protection**
 ![Solana HTTP Resource Demo](solana-http.gif)
-Access protected files through a WebSocket session...
 
 
 
