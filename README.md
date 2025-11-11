@@ -177,28 +177,690 @@ const ws402 = new WS402(config, baseProvider);
 
 ### 2. Solana Blockchain (Direct Integration)
 
+The Solana Payment Provider enables ultra-fast, low-cost payments on the Solana blockchain with automatic refunds.
+
+#### Quick Setup
+
 ```javascript
 const { WS402, SolanaPaymentProvider } = require('ws402');
 
 const solanaProvider = new SolanaPaymentProvider({
   rpcEndpoint: 'https://api.mainnet-beta.solana.com',
   merchantWallet: 'YourSolanaPublicKey',
+  merchantPrivateKey: [1, 2, 3, ...], // Array from wallet JSON
   network: 'mainnet-beta',
-  conversionRate: 1000000000, // wei to lamports
+  conversionRate: 1, // 1:1 lamports
   label: 'WS402 Payment',
   message: 'Pay for WebSocket access',
+  autoRefund: true,
 });
 
 const ws402 = new WS402(config, solanaProvider);
 ```
 
-**Features:**
-- ✅ Native SOL payments
-- ✅ SPL token support (USDC, USDT, etc.)
-- ✅ Solana Pay QR codes
-- ✅ ~$0.0001 transaction fees
-- ✅ Sub-second confirmations
-- ✅ Automatic on-chain refunds
+#### Configuration Options
+
+```typescript
+interface SolanaPaymentProviderConfig {
+  // Required
+  rpcEndpoint: string;           // Solana RPC endpoint
+  merchantWallet: string;        // Your wallet address (base58)
+  
+  // Optional - for automatic refunds
+  merchantPrivateKey?: number[]; // Wallet private key as array
+  
+  // Optional settings
+  network?: 'mainnet-beta' | 'devnet' | 'testnet';
+  conversionRate?: number;       // wei/lamports conversion (default: 1)
+  splToken?: string;             // SPL token mint address
+  paymentTimeout?: number;       // Payment timeout in ms (default: 300000)
+  label?: string;                // Solana Pay QR label
+  message?: string;              // Solana Pay message
+  memo?: string;                 // Transaction memo
+  autoRefund?: boolean;          // Enable auto-refunds (default: true if privateKey exists)
+}
+```
+
+#### Getting Your Private Key
+
+Your Solana private key is required for automatic refunds. Here's how to get it:
+
+**From Phantom/Solflare Wallet:**
+```bash
+# Export private key from wallet settings
+# It will be in base58 format like: 4p8Qsp4esg...
+MERCHANT_PRIVATE_KEY=4p8Qsp4esg...
+```
+
+**From Solana CLI:**
+```bash
+# Generate new keypair
+solana-keygen new -o my-wallet.json
+
+# View the keypair as array
+cat my-wallet.json
+# Output: [1,2,3,4,...,64]
+```
+
+**In your code:**
+```javascript
+// From base58 string (Phantom export)
+const privateKey = bs58.decode('4p8Qsp4esg...');
+
+// Or from JSON array
+const privateKey = [1, 2, 3, ..., 64];
+
+// Use in provider
+const solanaProvider = new SolanaPaymentProvider({
+  // ...other config
+  merchantPrivateKey: Array.from(privateKey),
+});
+```
+
+#### Use Cases
+
+##### **WebSocket Real-Time Streaming**
+
+Perfect for real-time data streams where users pay for connection time:
+
+![Solana WebSocket Demo](./docs/images/solana-ws.gif)
+
+```javascript
+const ws402 = new WS402(
+  {
+    updateInterval: 3000,          // Update every 3 seconds
+    pricePerSecond: 100000,        // 0.0001 SOL per second
+    currency: 'lamports',
+    maxSessionDuration: 3600,      // 1 hour max
+    
+    onPaymentVerified: (session) => {
+      console.log(`✅ Payment verified: ${session.sessionId}`);
+      console.log(`   Amount: ${session.paidAmount / 1e9} SOL`);
+    },
+    
+    onRefundIssued: (session, refund) => {
+      console.log(`💰 Refund: ${refund.amount / 1e9} SOL`);
+    },
+  },
+  solanaProvider
+);
+```
+
+##### **HTTP Resource Protection**
+
+Protect HTTP resources (PDFs, videos, images) with time-based billing via WebSocket:
+
+![Solana HTTP Resource Demo](./docs/images/solana-http.gif)
+
+```javascript
+const { WS402HTTPMiddleware } = require('ws402');
+
+// Initialize HTTP middleware
+const httpMiddleware = new WS402HTTPMiddleware(ws402);
+
+// Different resources can have different prices
+const RESOURCES = {
+  'premium-report': {
+    type: 'pdf',
+    path: './reports/premium.pdf',
+    pricePerSecond: 500000,      // 0.0005 SOL/sec
+    estimatedTime: 600,          // 10 minutes
+  },
+  'basic-guide': {
+    type: 'pdf',
+    path: './guides/basic.pdf',
+    pricePerSecond: 100000,      // 0.0001 SOL/sec
+    estimatedTime: 300,          // 5 minutes
+  },
+};
+
+// Schema endpoint with resource-specific pricing
+app.get('/api/resource/:resourceId/schema', (req, res) => {
+  const resource = RESOURCES[req.params.resourceId];
+  
+  const schema = ws402.generateSchema(
+    req.params.resourceId,
+    resource.estimatedTime,
+    resource.pricePerSecond  // Custom price per resource
+  );
+  
+  res.json({ ws402Schema: schema });
+});
+
+// Protected resource endpoint
+app.get('/api/resource/:resourceId',
+  httpMiddleware.protectHTTPResource(),
+  (req, res) => {
+    const resource = RESOURCES[req.params.resourceId];
+    res.sendFile(resource.path);
+  }
+);
+
+// Register HTTP session after WS402 payment
+ws402.on('payment_verified', (session) => {
+  const token = httpMiddleware.registerHTTPSession(
+    session.sessionId,
+    session._resourceId
+  );
+  
+  // Send token to client for HTTP access
+  clientWs.send(JSON.stringify({
+    type: 'http_access_granted',
+    httpToken: token,
+    resourceUrl: `/api/resource/${session._resourceId}?token=${token}`,
+  }));
+});
+```
+
+**How it works:**
+1. Client requests resource schema → Gets price and payment details
+2. Client pays via Solana → Gets session token
+3. Client opens HTTP resource → Server validates session via WS402
+4. Timer runs via WebSocket → Tracks actual usage time
+5. Client closes → Automatic refund for unused time
+
+#### Features
+
+- ✅ **Native SOL payments** - No token wrapping needed
+- ✅ **SPL token support** - USDC, USDT, and custom tokens
+- ✅ **Solana Pay integration** - QR codes for mobile wallets
+- ✅ **Sub-second confirmations** - Typically < 1 second
+- ✅ **Ultra-low fees** - ~$0.0001 per transaction
+- ✅ **Automatic on-chain refunds** - Unused balance returned instantly
+- ✅ **Mobile wallet support** - Phantom, Solflare, Backpack
+- ✅ **Reference tracking** - Unique payment IDs for verification
+
+#### Payment Flow
+
+```
+┌─────────┐                    ┌─────────┐                    ┌──────────┐
+│ Client  │                    │ WS402   │                    │  Solana  │
+│         │                    │ Server  │                    │  Chain   │
+└────┬────┘                    └────┬────┘                    └────┬─────┘
+     │                              │                              │
+     │ 1. Request Schema            │                              │
+     │────────────────────────────>│                              │
+     │                              │                              │
+     │ 2. Schema + Payment Details  │                              │
+     │<────────────────────────────│                              │
+     │   (QR code, address, amount) │                              │
+     │                              │                              │
+     │ 3. Sign & Send Transaction   │                              │
+     │──────────────────────────────────────────────────────────>│
+     │                              │                              │
+     │                              │ 4. Verify Transaction        │
+     │                              │<─────────────────────────────│
+     │                              │                              │
+     │ 5. Connect WebSocket         │                              │
+     │────────────────────────────>│                              │
+     │                              │                              │
+     │ 6. Send Payment Proof        │                              │
+     │    (signature + reference)   │                              │
+     │────────────────────────────>│                              │
+     │                              │                              │
+     │                              │ 7. Verify On-Chain           │
+     │                              │────────────────────────────>│
+     │                              │                              │
+     │                              │ 8. Confirmation              │
+     │                              │<────────────────────────────│
+     │                              │                              │
+     │ 9. Session Started           │                              │
+     │<────────────────────────────│                              │
+     │                              │                              │
+     │ 10. Usage Updates (periodic) │                              │
+     │<────────────────────────────│                              │
+     │                              │                              │
+     │ 11. Disconnect               │                              │
+     │────────────────────────────>│                              │
+     │                              │                              │
+     │                              │ 12. Send Refund (if any)     │
+     │                              │────────────────────────────>│
+     │                              │                              │
+     │ 13. Session Ended            │ 14. Refund Confirmed         │
+     │<────────────────────────────│<────────────────────────────│
+     │                              │                              │
+```
+
+#### Payment Details Structure
+
+When you call `generateSchema()`, the Solana provider returns:
+
+```json
+{
+  "protocol": "ws402",
+  "version": "0.1.2",
+  "resourceId": "video-stream-123",
+  "websocketEndpoint": "wss://api.example.com/ws402",
+  "pricing": {
+    "pricePerSecond": 100000,
+    "currency": "lamports",
+    "estimatedDuration": 300,
+    "totalPrice": 30000000
+  },
+  "paymentDetails": {
+    "type": "solana",
+    "network": "mainnet-beta",
+    "recipient": "YourWalletPublicKey",
+    "amount": 30000000,
+    "amountSOL": "0.03",
+    "currency": "SOL",
+    "reference": "UniqueReferencePublicKey",
+    "solanaPayURL": "solana:YourWallet?amount=0.03&reference=...",
+    "qrCode": "solana:...",
+    "expiresAt": 1234567890000,
+    "instructions": {
+      "step1": "Scan QR code with Solana-compatible wallet",
+      "step2": "Or use Phantom, Solflare, or other Solana wallet",
+      "step3": "Approve transaction",
+      "step4": "Connection will be established automatically"
+    }
+  },
+  "maxSessionDuration": 3600
+}
+```
+
+#### Client Implementation
+
+**Web App with Phantom Wallet:**
+
+```javascript
+// 1. Get schema
+const response = await fetch('/ws402/schema/my-resource?duration=300');
+const schema = await response.json();
+
+// 2. Connect to Phantom wallet
+if (!window.solana || !window.solana.isPhantom) {
+  alert('Please install Phantom wallet');
+  return;
+}
+
+await window.solana.connect();
+const provider = window.solana;
+
+// 3. Create payment transaction
+const { Connection, PublicKey, Transaction, SystemProgram } = window.solanaWeb3;
+
+const connection = new Connection('https://api.mainnet-beta.solana.com');
+const { blockhash } = await connection.getLatestBlockhash();
+
+const transaction = new Transaction({
+  feePayer: provider.publicKey,
+  recentBlockhash: blockhash,
+});
+
+// Add transfer instruction
+transaction.add(
+  SystemProgram.transfer({
+    fromPubkey: provider.publicKey,
+    toPubkey: new PublicKey(schema.paymentDetails.recipient),
+    lamports: schema.paymentDetails.amount,
+  })
+);
+
+// Add reference as read-only account (for tracking)
+transaction.add({
+  keys: [{ 
+    pubkey: new PublicKey(schema.paymentDetails.reference), 
+    isSigner: false, 
+    isWritable: false 
+  }],
+  programId: SystemProgram.programId,
+  data: Buffer.alloc(0),
+});
+
+// 4. Sign and send transaction
+const { signature } = await provider.signAndSendTransaction(transaction);
+console.log('Payment sent:', signature);
+
+// 5. Connect to WebSocket
+const ws = new WebSocket(schema.websocketEndpoint);
+
+ws.onopen = () => {
+  // Send payment proof
+  ws.send(JSON.stringify({
+    type: 'payment_proof',
+    proof: {
+      signature: signature,
+      reference: schema.paymentDetails.reference,
+      senderAddress: provider.publicKey.toBase58(),
+      amount: schema.paymentDetails.amount,
+    }
+  }));
+};
+
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  
+  if (data.type === 'session_started') {
+    console.log('✅ Session started!');
+    console.log('Balance:', data.balance / 1e9, 'SOL');
+  }
+  
+  if (data.type === 'usage_update') {
+    console.log('Time:', data.elapsedSeconds, 's');
+    console.log('Remaining:', data.remainingBalance / 1e9, 'SOL');
+  }
+};
+
+// 6. Close to trigger refund
+ws.close();
+```
+
+**React Example:**
+
+```jsx
+import { useState } from 'react';
+import { useWallet } from '@solana/wallet-adapter-react';
+import { Connection, Transaction, SystemProgram, PublicKey } from '@solana/web3.js';
+
+function PayPerUseStream() {
+  const { publicKey, signTransaction } = useWallet();
+  const [session, setSession] = useState(null);
+  const [ws, setWs] = useState(null);
+
+  const startSession = async () => {
+    // 1. Fetch schema
+    const res = await fetch('/ws402/schema/stream?duration=600');
+    const schema = await res.json();
+
+    // 2. Create payment
+    const connection = new Connection('https://api.mainnet-beta.solana.com');
+    const { blockhash } = await connection.getLatestBlockhash();
+
+    const tx = new Transaction({ 
+      feePayer: publicKey, 
+      recentBlockhash: blockhash 
+    });
+
+    tx.add(
+      SystemProgram.transfer({
+        fromPubkey: publicKey,
+        toPubkey: new PublicKey(schema.paymentDetails.recipient),
+        lamports: schema.paymentDetails.amount,
+      })
+    );
+
+    const signed = await signTransaction(tx);
+    const signature = await connection.sendRawTransaction(signed.serialize());
+
+    // 3. Connect WebSocket
+    const websocket = new WebSocket(schema.websocketEndpoint);
+    
+    websocket.onopen = () => {
+      websocket.send(JSON.stringify({
+        type: 'payment_proof',
+        proof: {
+          signature,
+          reference: schema.paymentDetails.reference,
+          senderAddress: publicKey.toBase58(),
+          amount: schema.paymentDetails.amount,
+        }
+      }));
+    };
+
+    websocket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'session_started') {
+        setSession(data);
+      }
+      if (data.type === 'usage_update') {
+        setSession(prev => ({ ...prev, ...data }));
+      }
+    };
+
+    setWs(websocket);
+  };
+
+  const endSession = () => {
+    if (ws) {
+      ws.close(); // Triggers automatic refund
+    }
+  };
+
+  return (
+    <div>
+      <button onClick={startSession}>Start Session</button>
+      {session && (
+        <div>
+          <p>Time: {session.elapsedSeconds}s</p>
+          <p>Remaining: {session.remainingBalance / 1e9} SOL</p>
+          <button onClick={endSession}>End & Refund</button>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+#### Environment Variables
+
+```bash
+# Solana Configuration
+SOLANA_RPC=https://api.mainnet-beta.solana.com
+SOLANA_NETWORK=mainnet-beta
+
+# Merchant Wallet (public key)
+MERCHANT_WALLET=YourSolanaPublicKeyHere
+
+# Merchant Private Key (for automatic refunds)
+# Option 1: JSON array from wallet file
+MERCHANT_PRIVATE_KEY='[1,2,3,4,...,64]'
+
+# Option 2: Base58 string from Phantom/Solflare
+# MERCHANT_PRIVATE_KEY=4p8Qsp4esg...
+
+# Optional: SPL Token (for USDC, USDT, etc.)
+# SPL_TOKEN_MINT=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+
+# Server
+PORT=4028
+```
+
+#### Testing on Devnet
+
+```bash
+# Use devnet for testing
+SOLANA_RPC=https://api.devnet.solana.com
+SOLANA_NETWORK=devnet
+
+# Get free devnet SOL
+# Visit: https://faucet.solana.com
+# Or use CLI: solana airdrop 2 YourWalletAddress --url devnet
+```
+
+#### SPL Token Payments (USDC, USDT, etc.)
+
+```javascript
+const solanaProvider = new SolanaPaymentProvider({
+  rpcEndpoint: 'https://api.mainnet-beta.solana.com',
+  merchantWallet: 'YourSolanaPublicKey',
+  merchantPrivateKey: privateKeyArray,
+  splToken: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', // USDC mint
+  network: 'mainnet-beta',
+  conversionRate: 1000000, // 1 USDC = 1,000,000 units (6 decimals)
+});
+```
+
+#### Security Best Practices
+
+**1. Private Key Management:**
+```javascript
+// ❌ NEVER hardcode private keys
+const provider = new SolanaPaymentProvider({
+  merchantPrivateKey: [1, 2, 3, ...],
+});
+
+// ✅ ALWAYS use environment variables
+const provider = new SolanaPaymentProvider({
+  merchantPrivateKey: process.env.MERCHANT_PRIVATE_KEY 
+    ? JSON.parse(process.env.MERCHANT_PRIVATE_KEY) 
+    : undefined,
+});
+```
+
+**2. Network Validation:**
+```javascript
+// Verify you're on the correct network
+const info = solanaProvider.getConnectionInfo();
+console.log('Network:', info.network);
+console.log('Auto-refund:', info.autoRefundEnabled);
+
+if (info.network === 'devnet' && process.env.NODE_ENV === 'production') {
+  throw new Error('Cannot use devnet in production!');
+}
+```
+
+**3. Balance Monitoring:**
+```javascript
+// Monitor merchant wallet balance
+const { Connection, LAMPORTS_PER_SOL } = require('@solana/web3.js');
+
+const connection = new Connection(process.env.SOLANA_RPC);
+const balance = await connection.getBalance(
+  new PublicKey(process.env.MERCHANT_WALLET)
+);
+
+console.log('Merchant balance:', balance / LAMPORTS_PER_SOL, 'SOL');
+
+// Alert if balance is low
+if (balance < 0.1 * LAMPORTS_PER_SOL) {
+  console.warn('⚠️  Low balance! May affect refunds.');
+}
+```
+
+**4. Error Handling:**
+```javascript
+ws402.on('refund_error', ({ session, error }) => {
+  console.error('Refund failed:', error);
+  
+  // Log to monitoring service
+  monitoringService.logError({
+    type: 'refund_failed',
+    sessionId: session.sessionId,
+    userId: session.userId,
+    amount: session.paidAmount - session.consumedAmount,
+    error: error.message,
+  });
+  
+  // Queue for manual processing
+  refundQueue.add({
+    senderWallet: session.paymentProof.senderAddress,
+    amount: session.paidAmount - session.consumedAmount,
+    reason: 'automatic_refund_failed',
+  });
+});
+```
+
+#### Advanced Features
+
+**Payment Verification with Retries:**
+
+The Solana provider automatically retries payment verification:
+
+```javascript
+// Automatic retry logic (built-in):
+// - Max 10 retries
+// - 2 second delay between retries
+// - Handles network delays and finalization
+
+// Transaction typically confirms in < 1 second
+// Provider waits up to 20 seconds for confirmation
+```
+
+**Refund Confirmation Tracking:**
+
+```javascript
+ws402.on('refund', ({ session, refund }) => {
+  console.log('💰 Refund processing...');
+  console.log('   Amount:', refund.amount / 1e9, 'SOL');
+  console.log('   Session:', session.sessionId);
+  
+  // Check on Solscan
+  const explorerUrl = `https://solscan.io/tx/${refund.signature}`;
+  console.log('   Explorer:', explorerUrl);
+});
+```
+
+**Cleanup Expired Payments:**
+
+```javascript
+// Run cleanup periodically
+setInterval(() => {
+  const cleaned = solanaProvider.cleanupExpiredPayments();
+  if (cleaned > 0) {
+    console.log(`🧹 Cleaned ${cleaned} expired payments`);
+  }
+}, 60000); // Every minute
+```
+
+#### Monitoring & Debugging
+
+**Health Check Endpoint:**
+
+```javascript
+app.get('/health', async (req, res) => {
+  const info = solanaProvider.getConnectionInfo();
+  const connection = new Connection(info.rpcEndpoint);
+  
+  try {
+    // Check RPC connection
+    const blockHeight = await connection.getBlockHeight();
+    
+    // Check merchant balance
+    const balance = await connection.getBalance(
+      new PublicKey(info.merchantWallet)
+    );
+    
+    res.json({
+      status: 'ok',
+      network: info.network,
+      blockHeight,
+      merchantBalance: balance / LAMPORTS_PER_SOL,
+      autoRefund: info.autoRefundEnabled,
+      activeSessions: ws402.getActiveSessions().length,
+    });
+  } catch (error) {
+    res.status(503).json({
+      status: 'error',
+      error: error.message,
+    });
+  }
+});
+```
+
+**Debug Endpoints:**
+
+```javascript
+// Get pending payment info
+app.get('/debug/pending/:reference', (req, res) => {
+  const pending = solanaProvider.getPendingPayment(req.params.reference);
+  if (!pending) {
+    return res.status(404).json({ error: 'Payment not found' });
+  }
+  
+  res.json({
+    reference: req.params.reference,
+    amount: pending.amount,
+    amountSOL: pending.amountSOL.toString(),
+    recipient: pending.recipient.toBase58(),
+    timestamp: new Date(pending.timestamp).toISOString(),
+    expiresAt: new Date(pending.timestamp + 300000).toISOString(),
+  });
+});
+```
+
+#### Comparison: Solana vs Base
+
+| Feature | Solana | Base |
+|---------|--------|------|
+| Transaction Fee | ~$0.0001 | ~$0.01 |
+| Confirmation Time | < 1 sec | 2-5 sec |
+| Finality | ~13 sec | ~1 min |
+| Native Currency | SOL | ETH |
+| Token Standard | SPL | ERC20 |
+| QR Code Support | ✅ Solana Pay | ❌ |
+| Mobile Wallets | Phantom, Solflare, Backpack | MetaMask, Coinbase |
+| Best For | High-volume, low-value | EVM ecosystem |
 
 ### 3. Proxy Architecture (Enterprise/Multi-Server)
 
@@ -386,13 +1048,15 @@ See the `/examples` directory for complete working examples:
 ### Development
 - `basic-server.js` - Mock payment provider for testing
 - `base-server.js` - Base blockchain integration
-- `solana-server.js` - Solana blockchain integration
+- `solana-server.js` - Solana blockchain integration (WebSocket)
+- `solana-http-tracker.js` - Solana with HTTP resource protection
 - `proxy-server.js` - Proxy architecture with gateway
 - `payment-gateway-server.js` - Centralized payment gateway
 
 ### Clients
 - `base-client.html` - Web client with MetaMask integration
 - `solana-client.html` - Web client with Solana Pay
+- `solana-http-tracker-client.html` - Web client for HTTP resource protection
 - `proxy-client.html` - Web client for proxy architecture
 
 ### Run Examples
@@ -404,8 +1068,11 @@ npm run example
 # Base blockchain
 npm run example:base
 
-# Solana blockchain
+# Solana blockchain (WebSocket)
 npm run example:solana
+
+# Solana with HTTP resources
+node examples/solana-http-tracker.js
 
 # Proxy architecture (run gateway first)
 node examples/payment-gateway-server.js  # Terminal 1
@@ -462,7 +1129,7 @@ new WS402(config: WS402Config, paymentProvider: PaymentProvider)
 #### Methods
 
 - `attach(wss: WebSocket.Server)` - Attach to WebSocket server
-- `generateSchema(resourceId, estimatedDuration)` - Generate WS402 schema
+- `generateSchema(resourceId, estimatedDuration, pricePerSecond?)` - Generate WS402 schema
 - `getSessionByUserId(userId)` - Get active session by user ID
 - `getActiveSessions()` - Get all active sessions
 
@@ -490,7 +1157,12 @@ MERCHANT_PRIVATE_KEY=your_private_key_here
 
 # Solana Blockchain
 SOLANA_RPC=https://api.mainnet-beta.solana.com
-SOLANA_WALLET=YourSolanaPublicKey
+SOLANA_NETWORK=mainnet-beta
+MERCHANT_WALLET=YourSolanaPublicKey
+MERCHANT_PRIVATE_KEY='[1,2,3,4,...,64]'
+
+# Optional: SPL Token
+SPL_TOKEN_MINT=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
 
 # Proxy Gateway
 GATEWAY_URL=https://payment-gateway.example.com
@@ -569,6 +1241,7 @@ Contributions welcome! This is an open-source project.
 - [x] Solana blockchain integration
 - [x] Proxy payment architecture
 - [x] Automatic refunds
+- [x] HTTP resource protection with time tracking
 - [ ] Bitcoin Lightning Network support
 - [ ] Distribution pool for maintainer rewards
 - [ ] WebRTC support
@@ -588,13 +1261,10 @@ MIT License - see [LICENSE](LICENSE) file
 - 💬 X: https://x.com/ws402org
 - 🔗 Farcaster: https://farcaster.xyz/ws402
 - 💻 GitHub: https://github.com/ws402/ws402
-- 📚 Documentation: https://docs.ws402.org
 
 ## Support
 
 - 💬 GitHub Issues: https://github.com/ws402/ws402/issues
-- 📧 Email: support@ws402.org
-- 💬 Discord: https://discord.gg/ws402
 - 🐦 Twitter/X: https://x.com/ws402org
 
 ## Acknowledgments
