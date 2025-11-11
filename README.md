@@ -179,6 +179,21 @@ const ws402 = new WS402(config, baseProvider);
 
 The Solana Payment Provider enables ultra-fast, low-cost payments on the Solana blockchain with automatic refunds.
 
+
+#### 🎬 See it in Action
+
+**WebSocket Real-Time Streaming**
+![Solana WebSocket Demo](solana-ws.gif)
+Connect to WebSocket, pay with Solana...
+
+---
+
+**HTTP Resource Protection**
+![Solana HTTP Resource Demo](solana-http.gif)
+Access protected files through a WebSocket session...
+
+
+
 #### Quick Setup
 
 ```javascript
